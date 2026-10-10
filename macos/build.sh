@@ -28,17 +28,19 @@ echo "== Xcode project"
 xcodegen generate --spec "$here/project.yml" --project "$here" --quiet
 
 # The version is the base in gradle.properties plus the commit count, as the Android app's is, plus the short commit.
+# CLAUDIVERSE_VERSION (a release's tag without its "v", say) names the version instead of 1.0.<count>.
 base=$(sed -n 's/^claudiverse.versionBase=//p' "$root/gradle.properties")
 count=$((base + $(git -C "$root" rev-list --count HEAD 2>/dev/null || echo 0)))
 commit=$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo unknown)
+version=${CLAUDIVERSE_VERSION:-1.0.$count}
 
-echo "== app (1.0.$count, $commit)${harness:+, with the harness}"
+echo "== app ($version, build $count, $commit)${harness:+, with the harness}"
 # Only --harness compiles Harness.swift in; a normal build has no control socket.
 conditions='$(inherited)'
 [ -n "$harness" ] && conditions='$(inherited) CLAUDIVERSE_HARNESS'
 xcodebuild -project "$here/Claudiverse.xcodeproj" -scheme Claudiverse -configuration Release \
   -derivedDataPath "$here/build/derived" -quiet \
-  MARKETING_VERSION="1.0.$count" CURRENT_PROJECT_VERSION="$count" GIT_COMMIT="$commit" \
+  MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$count" GIT_COMMIT="$commit" \
   SWIFT_ACTIVE_COMPILATION_CONDITIONS="$conditions" \
   build
 

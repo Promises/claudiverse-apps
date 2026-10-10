@@ -34,6 +34,25 @@ A seat's agents and background work: its subagent beside the main conversation, 
 
 The Android app: the seat list, a seat with its subagent and background shell, and a channel of task cards.
 
+## Install
+
+Prebuilt apps are on the [Releases](https://github.com/Promises/claudiverse-apps/releases)
+page, one release per version tag:
+
+- **Mac**: `Claudiverse-macOS-<version>.zip` (Apple silicon, macOS 26). Unzip it
+  and move `Claudiverse.app` to Applications. If the release notes say it is
+  not notarized, open it the first time with right-click › **Open**, or run
+  `xattr -dr com.apple.quarantine /Applications/Claudiverse.app`.
+- **Android**: `claudiverse-android-<version>-universal.apk`, or the one for
+  your phone's ABI (most phones: `arm64-v8a`). Open it on the phone and allow
+  the install. It installs over an earlier build signed with the same key. A
+  build attached as `…-unsigned.apk` cannot be installed as it is; the release
+  notes say so. After that, your server can offer updates in the app; see
+  [Builds and updates](docs/android/builds-and-updates.md).
+
+`SHA256SUMS` lists every file's checksum. To build the apps yourself, see
+[Building](#building).
+
 You need a running Claudiverse server and an account on it. In the Android app,
 open the Connection tab, enter the server URL and tap Save, then tap Sign in
 under Account and enter your email and password; or paste an API token and tap

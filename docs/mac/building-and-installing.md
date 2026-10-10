@@ -1,9 +1,52 @@
 # Building and installing
 
-The Mac app is built from source on the Mac that runs it. There is no
-signed release, no App Store build and no in-app updater: to update, pull the
-repository and build again. `macos/build.sh` does the whole build in one
-command and, with `--install`, replaces the copy in `/Applications`.
+The Mac app comes as a prebuilt download on the repository's
+[Releases](https://github.com/Promises/claudiverse-apps/releases) page, or is
+built from source on the Mac that runs it. There is no App Store build and no
+in-app updater: to update, download the next release, or pull the repository
+and build again. `macos/build.sh` does the whole build in one command and,
+with `--install`, replaces the copy in `/Applications`.
+
+## Installing a release
+
+1. Download `Claudiverse-macOS-<version>.zip` from a release.
+2. Unzip it and move `Claudiverse.app` to `/Applications`.
+3. Open it. A release that is not notarized (its notes say so) is refused
+   the first time: right-click (or Control-click) the app in Finder, choose
+   **Open**, then **Open** again; or run
+   `xattr -dr com.apple.quarantine /Applications/Claudiverse.app`.
+
+The app's data stays where a source build keeps it, so moving between a
+release and a source build keeps you signed in.
+
+### How a release is built
+
+Pushing a tag `v<version>` (say `v1.2.0`) runs `.github/workflows/release.yml`.
+Its `mac` job, on a GitHub-hosted macOS runner, installs XcodeGen and a JDK
+and runs `macos/release.sh <version> <dir>`, which:
+
+1. runs `build.sh` with `CLAUDIVERSE_VERSION=<version>`, so the app's
+   version is the tag's;
+2. signs and notarizes the app when the signing secrets are set (below);
+3. zips it with `ditto` as `Claudiverse-macOS-<version>.zip`, and, when the
+   app is not notarized, writes the note on opening it, which the release
+   job adds to the release notes.
+
+The release job then publishes the Mac zip, the Android APK and a
+`SHA256SUMS` together; a tag with a `-` (`v1.2.0-rc1`) makes a pre-release.
+
+| Repository secret | Used for |
+|---|---|
+| `MACOS_CERT_P12_BASE64` | A Developer ID Application certificate with its key, exported as `.p12`, base64-encoded. |
+| `MACOS_CERT_PASSWORD` | That `.p12`'s password. |
+| `APPLE_TEAM_ID` | The certificate's team. |
+| `APPLE_ID`, `APPLE_APP_PASSWORD` | Notarization: an Apple ID and an app-specific password for it. |
+
+Without the first three, the app keeps `build.sh`'s ad hoc signature. With
+them it is signed with the hardened runtime and
+`macos/Claudiverse.entitlements` (Apple events, for opening iTerm); with the
+last two as well it is notarized and stapled, and opens without the extra
+step.
 
 ## How it works
 
@@ -51,7 +94,7 @@ the preferences (server URL, drafts, outbox, board layouts, ssh targets) in
 | Setting | Value | Example |
 |---|---|---|
 | Build number (`CURRENT_PROJECT_VERSION`, `CFBundleVersion`) | `claudiverse.versionBase` in `gradle.properties` plus `git rev-list --count HEAD` | 2200 + 3 = `2203` |
-| Version (`MARKETING_VERSION`, `CFBundleShortVersionString`) | `1.0.<build number>` | `1.0.2203` |
+| Version (`MARKETING_VERSION`, `CFBundleShortVersionString`) | `1.0.<build number>`, or `CLAUDIVERSE_VERSION` when set (a release sets it to its tag's version) | `1.0.2203` |
 | `GIT_COMMIT` | `git rev-parse --short HEAD` | `95e0a3c` |
 
 The Android app uses the same base and count, so a Mac build and an Android
@@ -189,6 +232,9 @@ xcodebuild test -project macos/Claudiverse.xcodeproj -scheme Claudiverse
 ## Source
 
 - `macos/build.sh`
+- `macos/release.sh`
+- `macos/Claudiverse.entitlements`
+- `.github/workflows/release.yml`
 - `macos/project.yml`
 - `macos/make-icon.sh`
 - `gradle.properties`
