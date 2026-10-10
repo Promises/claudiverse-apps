@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The claudiverse server speaks plain HTTP and is reachable only on its LAN,
+  which this app reaches through its own OpenVPN tunnel: the hop that leaves
+  the phone is encrypted by the tunnel, not by TLS. The server address is
+  entered by the user, so cleartext cannot be scoped to one domain here.
+  -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

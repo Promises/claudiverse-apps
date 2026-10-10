@@ -1,0 +1,16 @@
+The Claudiverse Android app
+Copyright (c) The Claudiverse authors
+
+The app links the OpenVPN engine of ics-openvpn (OpenVPN for Android, by Arne
+Schwabe; the openvpn/ module), and including any part of its de.blinkt.openvpn
+class hierarchy makes a derivative work of it. The app is therefore distributed
+under the same terms: the GNU General Public License, version 2 or (at your
+option) any later version, with the additional terms and the OpenSSL and
+Apache 2 linking exceptions stated in ../openvpn/LICENSE.txt. The full text of
+the GPL version 2 is in COPYING.
+
+The shared core it uses (../core) is MIT-licensed, which is compatible.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Claudiverse "Orbit" mark (brand/app-icon.svg) as the launcher foreground:
+  108dp adaptive-icon canvas, the 48-unit mark at 48dp, two thirds of the
+  visible 72dp. The brand masters use 50%, sized for square iOS-style tiles;
+  under Android's circle mask that read small. 48dp keeps the brand's clear
+  space (a quarter of the mark's width, 12dp, each side) and stays inside the
+  circle and Android's 66dp safe zone.
+
+  The brand SVG cuts the gap where the orbit passes in front of the planet with
+  a mask; VectorDrawable has no masks, so the planet is clipped instead: the
+  clip is a box minus the outline of that mask stroke (the front arc, 7 wide,
+  butt caps), computed by offsetting the arc +-3.5 along its normal. The gap
+  is real geometry, so it survives the monochrome (themed) icon too.
+  -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:translateX="30" android:translateY="30" android:scaleX="1" android:scaleY="1">
+        <!-- Back half of the orbit, behind the planet. -->
+        <group android:pivotX="24" android:pivotY="24" android:rotation="-22">
+            <path
+                android:pathData="M4,24 A20,8 0 0,1 44,24"
+                android:strokeColor="#FFFFFF"
+                android:strokeWidth="2.5"
+                android:strokeLineCap="round" />
+        </group>
+        <!-- The planet, with the gap where the front orbit crosses it. -->
+        <group android:pivotX="24" android:pivotY="24" android:rotation="-22">
+            <clip-path android:pathData="M-8.000,56.000 L56.000,56.000 L56.000,-8.000 L-8.000,-8.000 Z M47.500,24.000 L47.460,24.729 L47.343,25.445 L47.153,26.138 L46.899,26.801 L46.587,27.428 L46.226,28.018 L45.823,28.572 L45.383,29.092 L44.909,29.579 L44.405,30.037 L43.873,30.469 L43.314,30.877 L42.729,31.263 L42.119,31.628 L41.485,31.974 L40.827,32.302 L40.146,32.612 L39.442,32.907 L38.716,33.184 L37.969,33.446 L37.202,33.693 L36.415,33.924 L35.610,34.139 L34.788,34.338 L33.948,34.523 L33.094,34.691 L32.226,34.844 L31.345,34.981 L30.452,35.102 L29.549,35.207 L28.638,35.297 L27.719,35.370 L26.795,35.427 L25.866,35.467 L24.934,35.492 L24.000,35.500 L23.066,35.492 L22.134,35.467 L21.205,35.427 L20.281,35.370 L19.362,35.297 L18.451,35.207 L17.548,35.102 L16.655,34.981 L15.774,34.844 L14.906,34.691 L14.052,34.523 L13.212,34.338 L12.390,34.139 L11.585,33.924 L10.798,33.693 L10.031,33.446 L9.284,33.184 L8.558,32.907 L7.854,32.612 L7.173,32.302 L6.515,31.974 L5.881,31.628 L5.271,31.263 L4.686,30.877 L4.127,30.469 L3.595,30.037 L3.091,29.579 L2.617,29.092 L2.177,28.572 L1.774,28.018 L1.413,27.428 L1.101,26.801 L0.847,26.138 L0.657,25.445 L0.540,24.729 L0.500,24.000 L7.500,24.000 L7.498,23.969 L7.495,23.949 L7.496,23.950 L7.506,23.977 L7.535,24.035 L7.589,24.123 L7.674,24.239 L7.795,24.381 L7.954,24.544 L8.153,24.724 L8.392,24.919 L8.673,25.123 L8.993,25.334 L9.353,25.550 L9.751,25.766 L10.185,25.983 L10.655,26.197 L11.158,26.407 L11.693,26.612 L12.258,26.810 L12.852,27.001 L13.472,27.183 L14.118,27.356 L14.788,27.518 L15.479,27.670 L16.189,27.810 L16.918,27.938 L17.664,28.054 L18.424,28.157 L19.197,28.247 L19.980,28.324 L20.773,28.387 L21.574,28.436 L22.379,28.472 L23.189,28.493 L24.000,28.500 L24.811,28.493 L25.621,28.472 L26.426,28.436 L27.227,28.387 L28.020,28.324 L28.803,28.247 L29.576,28.157 L30.336,28.054 L31.082,27.938 L31.811,27.810 L32.521,27.670 L33.212,27.518 L33.882,27.356 L34.528,27.183 L35.148,27.001 L35.742,26.810 L36.307,26.612 L36.842,26.407 L37.345,26.197 L37.815,25.983 L38.249,25.766 L38.647,25.550 L39.007,25.334 L39.327,25.123 L39.608,24.919 L39.847,24.724 L40.046,24.544 L40.205,24.381 L40.326,24.239 L40.411,24.123 L40.465,24.035 L40.494,23.977 L40.504,23.950 L40.505,23.949 L40.502,23.969 L40.500,24.000 Z" />
+            <path
+                android:pathData="M14,24 A10,10 0 1,0 34,24 A10,10 0 1,0 14,24 Z"
+                android:fillColor="#FFFFFF" />
+        </group>
+        <!-- Front half of the orbit and the three agents. -->
+        <group android:pivotX="24" android:pivotY="24" android:rotation="-22">
+            <path
+                android:pathData="M44,24 A20,8 0 0,1 4,24"
+                android:strokeColor="#FFFFFF"
+                android:strokeWidth="2.5"
+                android:strokeLineCap="round" />
+            <path android:pathData="M40.5,24 A3.5,3.5 0 1,0 47.5,24 A3.5,3.5 0 1,0 40.5,24 Z" android:fillColor="#FFFFFF" />
+            <path android:pathData="M0.5,24 A3.5,3.5 0 1,0 7.5,24 A3.5,3.5 0 1,0 0.5,24 Z" android:fillColor="#FFFFFF" />
+            <path android:pathData="M13.66,31.52 A3.5,3.5 0 1,0 20.66,31.52 A3.5,3.5 0 1,0 13.66,31.52 Z" android:fillColor="#FFFFFF" />
+        </group>
+    </group>
+</vector>

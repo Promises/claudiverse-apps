@@ -1,0 +1,25 @@
+{
+  "about": "What openvpn/ is: ics-openvpn at this commit, file for file, except the files listed as ours. Checked by tools/vendorcheck.py.",
+  "upstream": "https://github.com/schwabe/ics-openvpn.git",
+  "commit": "06cae71ed3a49a9ff353b1efabd6f13b509aa04a",
+  "module": "openvpn",
+  "map": [
+    ["LICENSE.txt", "doc/LICENSE.txt"],
+    ["src/main/res/values/attrs_standalone.xml", "main/src/skeleton/res/values/attrs.xml"],
+    ["src/main/res/values/styles.xml", "main/src/skeleton/res/values/styles.xml"],
+    ["src/main/java/de/blinkt/openvpn/activities/NotImplemented.java", "main/src/skeleton/java/de/blinkt/openvpn/activities/NotImplemented.java"],
+    ["src/main/java/de/blinkt/openvpn/core/ProfileEncryption.java", "main/src/skeleton/java/de/blinkt/openvpn/core/ProfileEncryption.java"],
+    ["src/main/java/de/blinkt/openvpn/core/VariantConfig.java", "main/src/skeleton/java/de/blinkt/openvpn/core/VariantConfig.java"],
+    ["src/", "main/src/"]
+  ],
+  "ours_new": {
+    "build.gradle.kts": "the library's build",
+    "COPYING": "the GPL version 2 text, OpenVPN's COPYRIGHT.GPL (upstream ics-openvpn only refers to it)"
+  },
+  "ours_changed": {
+    "src/main/AndroidManifest.xml": "declares only the tunnel: no AIDL API service, remote actions or boot receiver; LaunchVPN not exported",
+    "src/main/cpp/CMakeLists.txt": "OpenVPN 2 with OpenSSL only: no OpenVPN 3, mbed TLS or SSL speed test; the pie assets copied on every build",
+    "src/main/java/de/blinkt/openvpn/core/NativeUtils.java": "does not load osslspeedtest, which is not built",
+    "src/main/java/de/blinkt/openvpn/core/StatusListener.java": "logs to logcat in debug builds only (the library has no flavors)"
+  }
+}

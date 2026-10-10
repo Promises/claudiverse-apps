@@ -1,0 +1,9 @@
+[submodule "openvpn/src/main/cpp/openvpn"]
+	path = openvpn/src/main/cpp/openvpn
+	url = https://github.com/schwabe/openvpn.git
+[submodule "openvpn/src/main/cpp/openssl"]
+	path = openvpn/src/main/cpp/openssl
+	url = https://github.com/schwabe/platform_external_openssl.git
+[submodule "openvpn/src/main/cpp/lz4"]
+	path = openvpn/src/main/cpp/lz4
+	url = https://github.com/lz4/lz4.git

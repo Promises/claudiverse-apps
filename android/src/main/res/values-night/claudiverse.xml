@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark mode: the same window style on Nord Polar Night. -->
+    <color name="claudiverse_window">#2E3440</color>
+    <style name="Claudiverse" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/claudiverse_window</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

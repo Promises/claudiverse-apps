@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="claudiverse_app_name">Claudiverse</string>
+    <!-- Brand violet (the web accent token), the app icon background. -->
+    <color name="claudiverse_brand">#7C3AED</color>
+    <color name="claudiverse_window">#ECEFF4</color>
+
+    <!-- Window theme only; everything inside is Compose. The background is the
+         theme's (Nord Snow Storm here, Polar Night in values-night), so there is
+         no flash of another colour before Compose draws. -->
+    <style name="Claudiverse" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/claudiverse_window</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

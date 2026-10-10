@@ -1,0 +1,11 @@
+.gradle/
+.kotlin/
+build/
+.cxx/
+local.properties
+.idea/
+*.iml
+.DS_Store
+macos/Claudiverse.xcodeproj/
+macos/Claudiverse/Info.plist
+__pycache__/

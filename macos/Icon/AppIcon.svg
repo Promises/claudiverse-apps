@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    The Claudiverse app icon for macOS: the brand master (brand/app-icon.svg),
+    the white Orbit mark at half the width on brand violet #7C3AED, full bleed.
+    macOS 26 draws the rounded shape itself: art pre-shaped as a rounded tile
+    with a shadow was put on a white plate instead.
+  -->
+  <defs>
+    <mask id="gap" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48">
+      <rect width="48" height="48" fill="#fff"/>
+      <path d="M44 24 A20 8 0 0 1 4 24" transform="rotate(-22 24 24)" stroke="#000" stroke-width="7" fill="none"/>
+    </mask>
+  </defs>
+  <rect width="1024" height="1024" fill="#7C3AED"/>
+  <!-- The mark: 48 units scaled to 512 px (half the width), centred, as in the brand master. -->
+  <g transform="translate(256 256) scale(10.6667)">
+    <g transform="rotate(-22 24 24)" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round">
+      <path d="M4 24 A20 8 0 0 1 44 24"/>
+    </g>
+    <circle cx="24" cy="24" r="10" fill="#fff" mask="url(#gap)"/>
+    <g transform="rotate(-22 24 24)" fill="#fff">
+      <path d="M44 24 A20 8 0 0 1 4 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="44" cy="24" r="3.5"/>
+      <circle cx="4" cy="24" r="3.5"/>
+      <circle cx="17.16" cy="31.52" r="3.5"/>
+    </g>
+  </g>
+</svg>

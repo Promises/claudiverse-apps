@@ -1,0 +1,79 @@
+# The Claudiverse macOS app. XcodeGen generates Claudiverse.xcodeproj from this
+# file (build.sh does it); the project file itself is not kept in git.
+name: Claudiverse
+options:
+  bundleIdPrefix: dev.claudiverse
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    # Swift 5 mode: the core's Kotlin types are not Sendable, and Swift 6's
+    # checks would only be silenced type by type.
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    # Apple silicon only, as the core framework is (macosArm64): an Intel slice has no Swift module to build against.
+    ARCHS: arm64
+targets:
+  Claudiverse:
+    type: application
+    platform: macOS
+    sources:
+      - path: Claudiverse
+    dependencies:
+      # Built by build.sh (gradle :core:assembleClaudiverseCoreReleaseXCFramework). Static: nothing to embed.
+      - framework: ../core/build/XCFrameworks/release/ClaudiverseCore.xcframework
+        embed: false
+    info:
+      path: Claudiverse/Info.plist
+      properties:
+        CFBundleDisplayName: Claudiverse
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.developer-tools
+        NSHumanReadableCopyright: ""
+        # Open terminal drives iTerm by AppleScript; macOS shows this when asking.
+        NSAppleEventsUsageDescription: Claudiverse opens a seat's terminal session in iTerm.
+        # The server is plain http on the LAN (or over the VPN).
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.claudiverse.desktop
+        PRODUCT_NAME: Claudiverse
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        # Built and run on this Mac only: signed to run locally, not sandboxed.
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Kotlin/Native's static framework needs its C++ runtime.
+        OTHER_LDFLAGS: ["-lc++"]
+  ClaudiverseTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: ClaudiverseTests
+    dependencies:
+      - target: Claudiverse
+    settings:
+      base:
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.claudiverse.desktop.tests
+        # Hosted in the app, so the tests reach its types (@testable import Claudiverse).
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Claudiverse.app/Contents/MacOS/Claudiverse
+        BUNDLE_LOADER: $(TEST_HOST)
+schemes:
+  Claudiverse:
+    build:
+      targets:
+        Claudiverse: all
+    test:
+      targets:
+        - ClaudiverseTests
+

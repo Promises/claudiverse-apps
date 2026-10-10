@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The OpenVPN 2 engine of ics-openvpn (OpenVPN for Android), as a library.
+  Only what runs a tunnel for the app that embeds it: the VPN service, its
+  status service and keep-alive job, and the permission and disconnect dialogs.
+  ics-openvpn's external control surfaces (the AIDL API service, its remote
+  actions and the boot receiver) are not declared, so no other app can drive
+  the VPN. Distributed under the GNU GPL v2 with additional terms; see
+  ../../../LICENSE.txt.
+  -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- keepVPNAlive is a persisted job, which JobScheduler refuses without it,
+         and the VPN process then dies on connect. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <application
+        android:name=".core.ICSOpenVPNApplication"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:theme="@style/blinkt"
+        tools:ignore="UnusedAttribute">
+        <meta-data
+            android:name="android.content.APP_RESTRICTIONS"
+            android:resource="@xml/app_restrictions" />
+
+        <activity
+            android:name=".activities.DisconnectVPN"
+            android:autoRemoveFromRecents="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=".DisconnectVPN"
+            android:theme="@style/blinkt.dialog" />
+
+        <service
+            android:name=".core.OpenVPNService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:foregroundServiceType="specialUse"
+            android:process=":openvpn">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="vpn"/>
+        </service>
+        <service
+            android:name=".core.OpenVPNStatusService"
+            android:exported="false"
+            android:process=":openvpn" />
+
+        <service android:name=".core.keepVPNAlive"
+            android:process=":openvpn"
+            android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE"/>
+
+        <!-- Asks for the VPN permission and starts a profile; started only by
+             the embedding app's own code. -->
+        <activity
+            android:name=".LaunchVPN"
+            android:autoRemoveFromRecents="true"
+            android:excludeFromRecents="true"
+            android:label="@string/vpn_launch_title"
+            android:taskAffinity=".LaunchVPN"
+            android:theme="@style/blinkt.dialog"
+            android:exported="false" />
+
+        <!-- Stand-ins for the OpenVPN UI screens the engine names in its
+             notifications and intents. -->
+        <activity
+            android:name=".activities.NotImplemented"
+            android:exported="false" />
+        <activity-alias
+            android:name=".activities.LogWindow"
+            android:exported="false"
+            android:targetActivity=".activities.NotImplemented" />
+        <activity-alias
+            android:name=".activities.Req"
+            android:exported="false"
+            android:targetActivity=".activities.NotImplemented" />
+    </application>
+
+</manifest>
