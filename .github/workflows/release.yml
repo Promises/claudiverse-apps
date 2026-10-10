@@ -1,0 +1,141 @@
+# Builds the apps when a version tag (v1.2.0, or v1.2.0-rc1 for a pre-release)
+# is pushed, and publishes them as one GitHub Release. Each platform job
+# uploads its files as a workflow artifact; the release job then creates the
+# release with all of them and one SHA256SUMS, so a failed build never leaves
+# a half-made release. A file named release-notes.md in an artifact is added
+# to the release notes instead of being attached.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The version code counts commits; the engine's native code is in submodules.
+          fetch-depth: 0
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: NDK version
+        id: ndk
+        run: echo "version=$(sed -n 's/^android-ndk = "\(.*\)"/\1/p' gradle/libs.versions.toml)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the NDK
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ANDROID_HOME }}/ndk/${{ steps.ndk.outputs.version }}
+          key: ndk-${{ steps.ndk.outputs.version }}
+
+      - name: Install the NDK and CMake
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;${{ steps.ndk.outputs.version }}" "cmake;3.22.1" > /dev/null
+
+      # The release key comes only from the repository's secrets. Without all
+      # four, the APKs are built unsigned and labelled so: never signed with a
+      # throwaway key, which an installed app would refuse as an update.
+      - name: Signing key
+        id: key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            {
+              echo "ORG_GRADLE_PROJECT_keystoreFile=$RUNNER_TEMP/release.keystore"
+              echo "ORG_GRADLE_PROJECT_keystorePassword=$KEYSTORE_PASSWORD"
+              echo "ORG_GRADLE_PROJECT_keystoreAlias=$KEY_ALIAS"
+              echo "ORG_GRADLE_PROJECT_keystoreAliasPassword=$KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::The Android signing secrets are not all set: building UNSIGNED APKs."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        run: ./gradlew :android:assembleRelease "-Pclaudiverse.versionName=${GITHUB_REF_NAME#v}"
+
+      - name: Collect
+        env:
+          SIGNED: ${{ steps.key.outputs.signed }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          suffix=$([ "$SIGNED" = true ] && echo "" || echo "-unsigned")
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner"
+          mkdir dist
+          for abi in universal arm64-v8a armeabi-v7a x86_64 x86; do
+            apk=$(ls android/build/outputs/apk/release/android-$abi-release*.apk)
+            if [ "$SIGNED" = true ]; then "$apksigner" verify "$apk"; fi
+            cp "$apk" "dist/claudiverse-android-$version-$abi$suffix.apk"
+          done
+          if [ "$SIGNED" = true ]; then
+            cat > dist/release-notes.md <<EOF
+          ## Android
+
+          Install \`claudiverse-android-$version-universal.apk\`, or the one for your phone's ABI (most phones: \`arm64-v8a\`). It installs over an earlier build as an update. Check a download against \`SHA256SUMS\`.
+          EOF
+          else
+            cat > dist/release-notes.md <<EOF
+          ## Android: unsigned
+
+          These APKs are **unsigned**: Android will not install them as they are. They are for checking the build; sign one with your own key (\`apksigner sign\`) to install it, as a separate app install rather than an update.
+          EOF
+          fi
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    needs: [android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir assets
+          : > notes.md
+          for dir in artifacts/*/; do
+            for f in "$dir"*; do
+              if [ "$(basename "$f")" = release-notes.md ]; then
+                cat "$f" >> notes.md
+                echo >> notes.md
+              else
+                cp "$f" assets/
+              fi
+            done
+          done
+          (cd assets && sha256sum * > SHA256SUMS)
+          cat assets/SHA256SUMS
+          prerelease=$(case "$GITHUB_REF_NAME" in *-*) echo --prerelease ;; esac)
+          gh release create "$GITHUB_REF_NAME" assets/* --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "$GITHUB_REF_NAME" --generate-notes --notes-file notes.md $prerelease

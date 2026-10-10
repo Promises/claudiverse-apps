@@ -1,6 +1,6 @@
 # Builds and updates
 
-This page covers building the Android app from source, how its version number is derived, how an operator publishes a build to the Claudiverse server, and how the installed app finds that build and installs it on its own (the in-app self-update).
+This page covers building the Android app from source, how its version number is derived, the prebuilt APKs on the GitHub releases, how an operator publishes a build to the Claudiverse server, and how the installed app finds that build and installs it on its own (the in-app self-update).
 
 The point of the self-update is that the phone does not need a cable or an app store: the operator runs `android/publish.sh` on the build machine, and every installed app offers the new build on its Connection tab.
 
@@ -51,7 +51,7 @@ android/build/outputs/apk/debug/android-arm64-v8a-debug.apk
 
 ### Release signing
 
-The `release` signing config reads four Gradle properties, which belong in `~/.gradle/gradle.properties` and never in the repository:
+A release build (`./gradlew :android:assembleRelease`) is signed with a key given by four Gradle properties. They belong in `~/.gradle/gradle.properties`, on the command line as `-P<name>=…`, or in the environment as `ORG_GRADLE_PROJECT_<name>` (as the release workflow passes its secrets), and never in the repository:
 
 | Property | Used for |
 |---|---|
@@ -60,7 +60,7 @@ The `release` signing config reads four Gradle properties, which belong in `~/.g
 | `keystoreAlias` | `keyAlias` |
 | `keystoreAliasPassword` | `keyPassword` |
 
-The `release` build type uses this config. If the properties are absent they resolve to null.
+The `release` signing config exists only when `keystoreFile` is set. Without it a release build is left **unsigned** (`android-<abi>-release-unsigned.apk`), which Android will not install as it is; it is never signed with a stand-in key, because an installed app refuses an update signed with a different key (see "Signing and in-place updates").
 
 ## Versioning
 
@@ -68,14 +68,50 @@ The `release` build type uses this config. If the properties are absent they res
 
 ```
 versionCode = claudiverse.versionBase + git commit count (git rev-list --count HEAD)
-versionName = "1.0.<versionCode>"
+versionName = claudiverse.versionName if set, else "1.0.<versionCode>"
 BuildConfig.GIT_COMMIT = git rev-parse --short=8 HEAD
 ```
+
+- `claudiverse.versionName` is an optional Gradle property. The release workflow sets it to the tag without its `v` (tag `v1.2.0` gives `1.2.0`). It only names the build: what an installed app compares is the `versionCode`, which is the commit count in every build.
 
 - `claudiverse.versionBase` is set in `gradle.properties` and is currently `2200`. Reading it is required: the build fails if the property is missing.
 - The commit count is `0` and `GIT_COMMIT` is `"unknown"` when git is unavailable (outside a repository, or before the first commit).
 - Why the base exists: `gradle.properties` says it keeps build numbers above those of the builds made before this repository (up to `1.0.2137`), so an installed app updates in place. A lower `versionCode` would never count as an update (see "The isUpdate rule").
 - The app shows its installed version as `<versionName> (<GIT_COMMIT>)`, for example `1.0.2300 (a1b2c3d4)`.
+
+## GitHub releases
+
+`.github/workflows/release.yml` builds the apps when a tag starting with `v` is pushed, and publishes them as one GitHub Release. A tag with a hyphen (`v1.2.0-rc1`) makes a pre-release.
+
+The Android job checks out the full history (the `versionCode` counts commits) and the submodules, installs JDK 17, the pinned NDK and CMake (the NDK is cached), and runs `./gradlew :android:assembleRelease -Pclaudiverse.versionName=<tag without v>`. The release gets:
+
+| Asset | What it is |
+|---|---|
+| `claudiverse-android-<version>-universal.apk` | every ABI in one APK |
+| `claudiverse-android-<version>-<abi>.apk` | one per ABI: `arm64-v8a` (most phones), `armeabi-v7a`, `x86_64`, `x86` |
+| `SHA256SUMS` | the SHA-256 of every file in the release (`sha256sum -c SHA256SUMS`) |
+
+### Signing on GitHub
+
+The release key is read from four repository secrets, which the workflow turns into the Gradle properties above. The keystore is decoded into the runner's temporary directory and is never printed or uploaded.
+
+| Secret | Gradle property |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | the keystore file, base64-encoded (`base64 -i release.keystore`), written to `keystoreFile` |
+| `ANDROID_KEYSTORE_PASSWORD` | `keystorePassword` |
+| `ANDROID_KEY_ALIAS` | `keystoreAlias` |
+| `ANDROID_KEY_PASSWORD` | `keystoreAliasPassword` |
+
+With all four set, each APK is checked with `apksigner verify` before it is attached. If any is missing, the job warns and builds **unsigned** APKs, named `claudiverse-android-<version>-<abi>-unsigned.apk`, and the release notes say they cannot be installed as they are. A signed release installs over an earlier build only when that build was signed with the same key and has a lower `versionCode`.
+
+### Releases and the in-app update feed
+
+The two are separate:
+
+- **A GitHub release** is for installing the app in the first place, or updating it by hand: download an APK and open it on the phone.
+- **The in-app update feed** is your own server: `android/publish.sh` uploads a build, and every installed app offers it on its Connection tab (see "Self-update" below).
+
+The workflow does not publish to the feed. A self-hosted server is usually not reachable from GitHub's runners, and publishing needs an `app` or `super` token; with one in the repository's secrets, anyone who could change the workflow could put a build on every phone that uses your server. To offer a release to the installed apps, run `android/publish.sh` on your own machine from the tagged commit. Both builds count commits the same way, so the release and the published build carry the same `versionCode`, and an app accepts either as an update when both are signed with the same key.
 
 ## Publishing a build
 
@@ -250,7 +286,7 @@ In `AppRoot.kt`, the Connection tab's bottom-bar icon shows a badge dot while th
 
 ### Signing and in-place updates
 
-Android refuses an update that is not signed with the same key as the installed app. The README states this: an update installs in place only when it is signed with the same key as the installed app. `AppUpdates` also relies on it as part of integrity (the sha256 check plus Android's signature check). Debug builds are signed with the local debug key, so a debug build published by `publish.sh` updates an installed app in place only when that app was signed with the same key (in practice, builds from the same machine). A mismatch surfaces as `Not installed: <message>` from the installer.
+Android refuses an update that is not signed with the same key as the installed app. The README states this: an update installs in place only when it is signed with the same key as the installed app. `AppUpdates` also relies on it as part of integrity (the sha256 check plus Android's signature check). Debug builds are signed with the local debug key, so a debug build published by `publish.sh` updates an installed app in place only when that app was signed with the same key (in practice, builds from the same machine). The same holds between a debug build and a release build: either updates the other only when both carry the same key. A mismatch surfaces as `Not installed: <message>` from the installer.
 
 ### Tests
 
@@ -289,6 +325,7 @@ Android refuses an update that is not signed with the same key as the installed 
 - `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties`, `gradle/libs.versions.toml`
 - `android/build.gradle.kts`
 - `android/publish.sh`
+- `.github/workflows/release.yml`
 - `android/src/main/java/dev/claudiverse/app/update/AppUpdates.kt`
 - `android/src/main/java/dev/claudiverse/app/update/UpdatedReceiver.kt`
 - `android/src/main/java/dev/claudiverse/app/ui/ConnectionScreen.kt`

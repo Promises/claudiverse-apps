@@ -21,6 +21,18 @@ fun git(vararg args: String): String? =
 val versionBase = providers.gradleProperty("claudiverse.versionBase").get().toInt()
 val commits = git("rev-list", "--count", "HEAD")?.toIntOrNull() ?: 0
 val commit = git("rev-parse", "--short=8", "HEAD") ?: "unknown"
+// A release names its version (the tag, -Pclaudiverse.versionName=1.2.0); the
+// code stays the commit count, which is what an installed app compares.
+val versionLabel = providers.gradleProperty("claudiverse.versionName").orNull ?: "1.0.${versionBase + commits}"
+
+// The release key, from Gradle properties (~/.gradle/gradle.properties, or -P
+// as the release workflow passes its secrets), never from this repository.
+// Without it a release build is left unsigned rather than signed with a key
+// an installed app would refuse.
+val keystoreFile: String? by project
+val keystorePassword: String? by project
+val keystoreAlias: String? by project
+val keystoreAliasPassword: String? by project
 
 android {
     namespace = "dev.claudiverse.app"
@@ -33,7 +45,7 @@ android {
         minSdk = 21
         targetSdk = 36
         versionCode = versionBase + commits
-        versionName = "1.0.${versionBase + commits}"
+        versionName = versionLabel
         buildConfigField("String", "GIT_COMMIT", "\"$commit\"")
     }
 
@@ -43,22 +55,19 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            // From ~/.gradle/gradle.properties, never from this repository.
-            val keystoreFile: String? by project
-            storeFile = keystoreFile?.let { file(it) }
-            val keystorePassword: String? by project
-            storePassword = keystorePassword
-            val keystoreAliasPassword: String? by project
-            keyPassword = keystoreAliasPassword
-            val keystoreAlias: String? by project
-            keyAlias = keystoreAlias
+        keystoreFile?.let { path ->
+            create("release") {
+                storeFile = file(path)
+                storePassword = keystorePassword
+                keyAlias = keystoreAlias
+                keyPassword = keystoreAliasPassword
+            }
         }
     }
 
     buildTypes {
         getByName("release") {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }
 
