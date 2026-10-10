@@ -41,7 +41,9 @@ android {
     ndkVersion = libs.versions.android.ndk.get()
 
     defaultConfig {
-        applicationId = "dev.claudiverse.app"
+        // The app's identity on a phone and in its update history; the code's own
+        // package (namespace) is unchanged.
+        applicationId = "tech.henning.claudiverse"
         minSdk = 21
         targetSdk = 36
         versionCode = versionBase + commits

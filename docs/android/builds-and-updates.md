@@ -27,7 +27,8 @@ From the repository README ("Building"):
 
 | Setting | Value | Where |
 |---|---|---|
-| `applicationId` / `namespace` | `dev.claudiverse.app` | `android/build.gradle.kts` |
+| `applicationId` | `tech.henning.claudiverse` | `android/build.gradle.kts` |
+| `namespace` (the code's package) | `dev.claudiverse.app` | `android/build.gradle.kts` |
 | `compileSdk` | 36 | `android/build.gradle.kts` |
 | `targetSdk` | 36 | `android/build.gradle.kts` |
 | `minSdk` | 21 | `android/build.gradle.kts` |
