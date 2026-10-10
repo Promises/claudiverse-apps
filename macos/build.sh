@@ -51,7 +51,7 @@ echo "built: $app"
 if [ -n "$install" ]; then
   # Quit a running copy first: replacing a running app's bundle leaves it half-updated.
   # A copy too busy to answer the quit within 5 s is stopped.
-  osascript -e 'with timeout of 5 seconds' -e 'tell application id "dev.claudiverse.desktop" to quit' -e 'end timeout' 2>/dev/null || true
+  osascript -e 'with timeout of 5 seconds' -e 'tell application id "tech.henning.claudiverse" to quit' -e 'end timeout' 2>/dev/null || true
   pkill -f '/Claudiverse.app/Contents/MacOS/Claudiverse' 2>/dev/null || true
   rm -rf /Applications/Claudiverse.app
   cp -R "$app" /Applications/

@@ -76,7 +76,7 @@ flowchart LR
 With `--install` it then:
 
 1. asks a running copy to quit (`osascript … tell application id
-   "dev.claudiverse.desktop" to quit`, with a 5 second timeout), because
+   "tech.henning.claudiverse" to quit`, with a 5 second timeout), because
    replacing a running app's bundle leaves it half-updated;
 2. stops a copy that did not quit in time (`pkill -f
    '/Claudiverse.app/Contents/MacOS/Claudiverse'`);
@@ -149,12 +149,19 @@ Any other argument fails with `unknown option: <arg>` and exit code 2.
 
 | What | Value |
 |---|---|
-| Bundle id | `dev.claudiverse.desktop` |
-| Test bundle id | `dev.claudiverse.desktop.tests` |
+| Bundle id | `tech.henning.claudiverse` |
+| Test bundle id | `tech.henning.claudiverse.tests` |
 | Core framework bundle id | `dev.claudiverse.core` |
-| Unified-log subsystem | `dev.claudiverse.desktop`, category `app` |
+| Unified-log subsystem | `tech.henning.claudiverse`, category `app` |
 
-A copy built under another bundle id `dev.claudiverse.desktop.<name>` keeps
+Before the bundle id was `tech.henning.claudiverse` it was
+`dev.claudiverse.desktop`. macOS takes a new id for a new app: it asks again
+for notifications and for iTerm control. On its first start under the new id
+the app copies the old id's preferences over once, so an update keeps the
+server address, drafts, queued messages and board layouts; the token file
+needs nothing, since its folder is named for the app.
+
+A copy built under another bundle id `tech.henning.claudiverse.<name>` keeps
 its own folder in Application Support (`Claudiverse <name>`) and can run
 beside the normal app; see [Connecting](connecting.md). `build.sh` has no
 option for that: change `PRODUCT_BUNDLE_IDENTIFIER` in `macos/project.yml`.

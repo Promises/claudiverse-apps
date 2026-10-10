@@ -289,11 +289,11 @@ The server's messages are Claude Code's own and change shape between versions, s
 `CoreLog.sink` is a `(String) -> Unit` that defaults to dropping lines. Core code logs through the internal `CoreLog.info`. `AppModel.init()` points the sink at the unified log:
 
 ```swift
-let log = Logger(subsystem: "dev.claudiverse.desktop", category: "app")
+let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "tech.henning.claudiverse", category: "app")
 CoreLog.shared.sink = { line in log.info("\(line, privacy: .public)") }
 ```
 
-Lines are public, so read them in Console.app or `log stream --predicate 'subsystem == "dev.claudiverse.desktop"'`. Lines include `socket open`, `socket lost (...)`, `host_spawn <id>: ok=... op=... row=... error=...`, `human requests not read: ...`, `fleets not read: ...` and `seat <id> not loaded: ...`.
+Lines are public, so read them in Console.app or `log stream --predicate 'subsystem == "tech.henning.claudiverse"'`. Lines include `socket open`, `socket lost (...)`, `host_spawn <id>: ok=... op=... row=... error=...`, `human requests not read: ...`, `fleets not read: ...` and `seat <id> not loaded: ...`.
 
 `ServerTime.kt` has two public functions. `parseServerTime(iso)` reads an ISO-8601 UTC string, with or without a trailing `Z` or fraction, using only the first 19 characters (`2026-10-02T18:30:17`), and returns epoch milliseconds, or null for null, a string shorter than 19 characters, or an unparsable one. `relativeTime(iso, now)` returns an empty string for no time and otherwise:
 

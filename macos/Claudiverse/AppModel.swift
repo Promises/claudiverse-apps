@@ -4,7 +4,7 @@ import Foundation
 import Observation
 import os
 
-let log = Logger(subsystem: "dev.claudiverse.desktop", category: "app")
+let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "tech.henning.claudiverse", category: "app")
 
 /// The server URL and token, read by the core on its own threads on every call.
 final class AccessBox: @unchecked Sendable {

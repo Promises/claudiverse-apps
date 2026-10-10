@@ -81,7 +81,7 @@ The repository does not contain `poke.caf`, and `macos/project.yml` adds no `Sou
 
 **Dock badge.** After each update, the Dock tile badge is the number of open requests, or empty when there are none.
 
-**`recheck` and System Settings.** `Notifier.recheck()` reads the settings again, since the operator may have changed them in System Settings. `Notifier.openSettings()` opens `x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=dev.claudiverse.desktop`, System Settings › Notifications at this app.
+**`recheck` and System Settings.** `Notifier.recheck()` reads the settings again, since the operator may have changed them in System Settings. `Notifier.openSettings()` opens `x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=tech.henning.claudiverse`, System Settings › Notifications at this app.
 
 ### The menu bar extra
 

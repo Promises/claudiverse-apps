@@ -29,13 +29,13 @@ flowchart LR
 ### Logs
 
 The app and its core log to the unified log under the subsystem
-`dev.claudiverse.desktop`, category `app`. The socket logs why it dropped
+`tech.henning.claudiverse`, category `app`. The socket logs why it dropped
 (`socket lost (…)`), feeds log failed reads (`fleets not read: …`,
 `profiles not read: …`, `human requests not read: …`), and the app logs
 token and notification problems.
 
 ```sh
-log stream --level info --predicate 'subsystem == "dev.claudiverse.desktop"'
+log stream --level info --predicate 'subsystem == "tech.henning.claudiverse"'
 ```
 
 A build with the [test harness](test-harness.md) also returns the last 200
@@ -49,11 +49,11 @@ core log lines with `macos/harness.sh '{"cmd":"log"}'`.
 | Pasted images | `~/Library/Application Support/Claudiverse/Pasted/` |
 | Harness socket (harness builds) | `~/Library/Application Support/Claudiverse/harness.sock` |
 | Notification sound | `~/Library/Sounds/Claudiverse Poke.caf` |
-| Preferences | `UserDefaults` of `dev.claudiverse.desktop`: `serverURL`, `section`, `selectedSeat`, `drafts`, `outbox`, `board2.<fleet>`, `ssh.<machine>` |
+| Preferences | `UserDefaults` of `tech.henning.claudiverse`: `serverURL`, `section`, `selectedSeat`, `drafts`, `outbox`, `board2.<fleet>`, `ssh.<machine>` |
 
 To start over on this Mac: sign out in Settings › Account (this revokes the
 token), quit, and delete the folder and the preferences
-(`defaults delete dev.claudiverse.desktop`). Drafts and queued messages go
+(`defaults delete tech.henning.claudiverse`). Drafts and queued messages go
 with them.
 
 ## Interface

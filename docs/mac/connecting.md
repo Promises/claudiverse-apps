@@ -98,11 +98,11 @@ token file never prompts, and the operator's own scripts can read it.
 ### Running a second copy
 
 The app's folder in Application Support depends on its bundle id. The normal
-build is `dev.claudiverse.desktop` and uses `Claudiverse`. A copy built under
-another bundle id `dev.claudiverse.desktop.<name>` uses `Claudiverse <name>`,
+build is `tech.henning.claudiverse` and uses `Claudiverse`. A copy built under
+another bundle id `tech.henning.claudiverse.<name>` uses `Claudiverse <name>`,
 so it has its own token, pasted images and harness socket, and can run beside
 the normal app signed in to another server. (`build.sh` always builds
-`dev.claudiverse.desktop`; a copy needs the bundle id changed in
+`tech.henning.claudiverse`; a copy needs the bundle id changed in
 `macos/project.yml`.) The server URL, the outbox and other preferences are in
 `UserDefaults`, which macOS also keeps per bundle id.
 

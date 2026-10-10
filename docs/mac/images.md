@@ -78,7 +78,7 @@ flowchart LR
 
 Paste stays enabled for a pasteboard holding only an image, which a plain-text view would refuse.
 
-A pasted image is written to `Pasted/` inside the app's support folder (`~/Library/Application Support/Claudiverse/Pasted`; a build with a bundle id `dev.claudiverse.desktop.<suffix>` uses `Claudiverse <suffix>` instead of `Claudiverse`, except the `.tests` id). It is not in the temporary folder, because a draft can keep the image across days and restarts. The file name is `Pasted image <yyyy-MM-dd> at <HH.mm.ss> <4 characters>.png`; the random suffix keeps two pastes in one second apart.
+A pasted image is written to `Pasted/` inside the app's support folder (`~/Library/Application Support/Claudiverse/Pasted`; a build with a bundle id `tech.henning.claudiverse.<suffix>` uses `Claudiverse <suffix>` instead of `Claudiverse`, except the `.tests` id). It is not in the temporary folder, because a draft can keep the image across days and restarts. The file name is `Pasted image <yyyy-MM-dd> at <HH.mm.ss> <4 characters>.png`; the random suffix keeps two pastes in one second apart.
 
 **Paperclip.** The paperclip button opens a file picker that allows any file and several at once. It is disabled while an upload runs.
 

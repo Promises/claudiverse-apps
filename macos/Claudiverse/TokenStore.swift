@@ -13,7 +13,7 @@ import Foundation
  */
 /**
  * This app's folder in Application Support: "Claudiverse". A copy built under
- * another bundle id (dev.claudiverse.desktop.<name>) gets "Claudiverse <name>",
+ * another bundle id (tech.henning.claudiverse.<name>) gets "Claudiverse <name>",
  * so it keeps its own token, pasted images and harness socket, and can run
  * beside the app signed in to another server.
  */
@@ -21,7 +21,7 @@ enum AppFolder {
     static let support: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let id = Bundle.main.bundleIdentifier ?? ""
-        let prefix = "dev.claudiverse.desktop."
+        let prefix = "tech.henning.claudiverse."
         let name = id.hasPrefix(prefix) && !id.hasSuffix(".tests") ? "Claudiverse \(id.dropFirst(prefix.count))" : "Claudiverse"
         return base.appendingPathComponent(name, isDirectory: true)
     }()
@@ -58,3 +58,40 @@ enum TokenStore {
         try? FileManager.default.removeItem(at: file)
     }
 }
+
+/**
+ * The app's preferences (server address, drafts, queued messages, board
+ * layouts, ssh targets) are kept per bundle id. Before the id became
+ * tech.henning.claudiverse it was dev.claudiverse.desktop: on the first start
+ * under the new id, its preferences are copied over once, so an update keeps
+ * them. The token file needs nothing: its folder is named for the app, not
+ * the id.
+ */
+enum Preferences {
+    static let oldBundleId = "dev.claudiverse.desktop"
+
+    /// Only the app itself: a copy under another id keeps its own preferences.
+    static func adoptOldBundleId() {
+        guard Bundle.main.bundleIdentifier == "tech.henning.claudiverse" else { return }
+        if copy(from: oldBundleId, to: "tech.henning.claudiverse") {
+            log.info("preferences copied from \(oldBundleId, privacy: .public)")
+        }
+    }
+
+    /// Copies domain [old] into [new] when [new] has nothing yet and [old] has something. True when it copied.
+    @discardableResult
+    static func copy(from old: String, to new: String, _ defaults: PreferenceDomains = UserDefaults.standard) -> Bool {
+        guard defaults.persistentDomain(forName: new)?.isEmpty ?? true,
+              let values = defaults.persistentDomain(forName: old), !values.isEmpty else { return false }
+        defaults.setPersistentDomain(values, forName: new)
+        return true
+    }
+}
+
+/// The two calls the copy needs: UserDefaults, or a stand-in that writes no files.
+protocol PreferenceDomains {
+    func persistentDomain(forName domainName: String) -> [String: Any]?
+    func setPersistentDomain(_ domain: [String: Any], forName domainName: String)
+}
+
+extension UserDefaults: PreferenceDomains {}

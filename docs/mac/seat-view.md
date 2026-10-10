@@ -44,7 +44,7 @@ The stored form is a JSON array of `{id, seat, text, at}` (`at` in epoch millise
 
 It is saved as JSON on each change under UserDefaults key `drafts`: a dictionary keyed by seat id, each `{text, attachments}`, attachments as file paths. At load, attachments whose file no longer exists are dropped (a deleted file, an unmounted volume), and a draft left empty is discarded.
 
-Pasted images are written to `Pasted/` inside the app's support folder (`~/Library/Application Support/Claudiverse/Pasted`; a build with a bundle id `dev.claudiverse.desktop.<name>` uses `Claudiverse <name>` instead of `Claudiverse`). It is not the temporary folder, because a draft can outlive a restart. At sign-in (`begin`), `removeStalePastes(olderThan: 7)` deletes files in that folder that no draft refers to and whose modification date is more than 7 days old. A file a draft still holds is never removed.
+Pasted images are written to `Pasted/` inside the app's support folder (`~/Library/Application Support/Claudiverse/Pasted`; a build with a bundle id `tech.henning.claudiverse.<name>` uses `Claudiverse <name>` instead of `Claudiverse`). It is not the temporary folder, because a draft can outlive a restart. At sign-in (`begin`), `removeStalePastes(olderThan: 7)` deletes files in that folder that no draft refers to and whose modification date is more than 7 days old. A file a draft still holds is never removed.
 
 ### Stop, resume, interrupt
 

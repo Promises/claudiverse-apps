@@ -46,7 +46,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
 
     /// System Settings › Notifications, at this app.
     static func openSettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=dev.claudiverse.desktop") {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(Bundle.main.bundleIdentifier ?? "")") {
             NSWorkspace.shared.open(url)
         }
     }

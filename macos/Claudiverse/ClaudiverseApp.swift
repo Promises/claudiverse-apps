@@ -3,7 +3,13 @@ import SwiftUI
 
 @main
 struct ClaudiverseApp: App {
-    @State private var model = AppModel()
+    @State private var model: AppModel
+
+    init() {
+        // Before the model reads them: the preferences an install under the old bundle id kept.
+        Preferences.adoptOldBundleId()
+        _model = State(initialValue: AppModel())
+    }
 
     var body: some Scene {
         Window("Claudiverse", id: "main") {

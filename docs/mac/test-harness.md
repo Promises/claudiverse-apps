@@ -33,7 +33,7 @@ When the app starts, `Harness.start` creates the app's support folder (mode
 ```
 
 (`Claudiverse <name>` for a copy built under the bundle id
-`dev.claudiverse.desktop.<name>`). The socket file is mode 0600 inside the
+`tech.henning.claudiverse.<name>`). The socket file is mode 0600 inside the
 0700 folder, so only the operator's account can connect. A stale socket file
 is removed before binding.
 
@@ -57,7 +57,7 @@ switching speed is measured.
 |---|---|
 | Compiled in by | `macos/build.sh --harness` (Swift condition `CLAUDIVERSE_HARNESS`) |
 | Socket | `harness.sock` in the app's Application Support folder |
-| `CLAUDIVERSE_COPY` | environment variable for `harness.sh`: talk to the copy whose folder is `Claudiverse <value>` (built as `dev.claudiverse.desktop.<value>`) |
+| `CLAUDIVERSE_COPY` | environment variable for `harness.sh`: talk to the copy whose folder is `Claudiverse <value>` (built as `tech.henning.claudiverse.<value>`) |
 | Log buffer | 200 lines |
 
 ## Interface
@@ -67,7 +67,7 @@ switching speed is measured.
 ```sh
 macos/harness.sh '{"cmd":"state"}'
 macos/harness.sh '{"cmd":"select","seat":1234}'
-CLAUDIVERSE_COPY=e2e macos/harness.sh '{"cmd":"state"}'   # the copy built as dev.claudiverse.desktop.e2e
+CLAUDIVERSE_COPY=e2e macos/harness.sh '{"cmd":"state"}'   # the copy built as tech.henning.claudiverse.e2e
 ```
 
 It sends its one argument with `nc -U` and prints the reply. Without a socket

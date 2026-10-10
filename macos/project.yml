@@ -2,7 +2,7 @@
 # file (build.sh does it); the project file itself is not kept in git.
 name: Claudiverse
 options:
-  bundleIdPrefix: dev.claudiverse
+  bundleIdPrefix: tech.henning.claudiverse
   deploymentTarget:
     macOS: "26.0"
   createIntermediateGroups: true
@@ -40,7 +40,7 @@ targets:
           NSAllowsArbitraryLoads: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.claudiverse.desktop
+        PRODUCT_BUNDLE_IDENTIFIER: tech.henning.claudiverse
         PRODUCT_NAME: Claudiverse
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
@@ -64,7 +64,7 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: dev.claudiverse.desktop.tests
+        PRODUCT_BUNDLE_IDENTIFIER: tech.henning.claudiverse.tests
         # Hosted in the app, so the tests reach its types (@testable import Claudiverse).
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/Claudiverse.app/Contents/MacOS/Claudiverse
         BUNDLE_LOADER: $(TEST_HOST)
