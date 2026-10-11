@@ -22,7 +22,8 @@ struct MarkdownText: View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(Self.segments(Markdown.shared.blocks(text: text)).enumerated()), id: \.offset) { _, segment in
                 switch segment {
-                case .prose(let text): Text(text)
+                // Its full height, always: never shortened to make room for a block below it.
+                case .prose(let text): Text(text).fixedSize(horizontal: false, vertical: true)
                 case .code(let code): CodeBlock(text: code)
                 case .table(let table): TableBlock(table: table)
                 case .rule: Divider().padding(.vertical, 4)

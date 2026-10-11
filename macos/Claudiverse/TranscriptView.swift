@@ -539,11 +539,24 @@ struct Disclosure<Content: View>: View {
 struct CodeBlock: View {
     let text: String
 
+    /// More lines than this get a box of their own height that scrolls both ways.
+    static let maxLines = 18
+
     var body: some View {
-        ScrollView(.horizontal) {
-            Text(text).font(.callout.monospaced()).fixedSize(horizontal: true, vertical: false).padding(8)
+        let code = Text(text).font(.callout.monospaced()).fixedSize()
+        Group {
+            if text.count(where: { $0 == "\n" }) >= Self.maxLines {
+                // From its first line, at the left: content narrower than the box was centred, and opened mid-way.
+                ScrollView([.horizontal, .vertical]) { code.padding(8) }
+                    .defaultScrollAnchor(.topLeading)
+                    .frame(height: 360)
+            } else {
+                // As tall as its lines, and room below them for the scroller. A scroll view on its own takes all the
+                // height it is offered and squeezed the text above it, which then drew under the block.
+                ScrollView(.horizontal) { code.padding(.horizontal, 8).padding(.top, 8).padding(.bottom, 16) }
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .frame(maxHeight: 360)
         .background(Theme.codeBackground, in: RoundedRectangle(cornerRadius: 6))
     }
 }
