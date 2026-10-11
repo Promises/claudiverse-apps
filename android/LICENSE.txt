@@ -1,5 +1,5 @@
 The Claudiverse Android app
-Copyright (c) The Claudiverse authors
+Copyright (c) 2026 Henning Berge
 
 The app links the OpenVPN engine of ics-openvpn (OpenVPN for Android, by Arne
 Schwabe; the openvpn/ module), and including any part of its de.blinkt.openvpn
