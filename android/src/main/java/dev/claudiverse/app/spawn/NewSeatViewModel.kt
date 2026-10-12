@@ -12,37 +12,57 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import dev.claudiverse.core.seatTitleFor
 import dev.claudiverse.core.FolderTab
+import dev.claudiverse.core.HostEvents
 import dev.claudiverse.core.NewSeatState
+import dev.claudiverse.core.spawnExtras
+import kotlinx.coroutines.flow.drop
 
 /**
  * The New seat screen: a machine, a folder (recent or browsed), a title that
  * defaults to the folder's name, a permission mode (auto by default, as the
- * server's spawn) and an optional first prompt.
+ * server's spawn), the model and the account pool where the machine's agent
+ * offers them, and an optional first prompt. The machines are read again
+ * whenever one's agent joins or leaves.
  */
 class NewSeatViewModel(private val app: AppContainer) : ViewModel() {
 
     private val state = MutableStateFlow(NewSeatState())
     val ui: StateFlow<NewSeatState> = state.asStateFlow()
     private var load: Job? = null
+    private val hostEvents = HostEvents(app.socket, viewModelScope)
 
     init {
         viewModelScope.launch {
-            runCatching { app.api.hosts() }
-                .onSuccess { hosts ->
-                    state.update { it.copy(hosts = hosts, hostsLoading = false) }
-                    hosts.firstOrNull { it.online }?.let { pickHost(it.name) }
-                }
-                .onFailure { e ->
-                    val why = if ((e as? ApiException)?.httpStatus == 404) "This server can't spawn seats yet." else "Machines not loaded: ${e.message}"
-                    state.update { it.copy(hostsLoading = false, hostsError = why) }
-                }
+            loadHosts()
+            state.value.hosts.firstOrNull { it.online }?.let { pickHost(it.name) }
         }
+        hostEvents.start()
+        viewModelScope.launch { hostEvents.changes.drop(1).collect { loadHosts() } }
+    }
+
+    override fun onCleared() {
+        hostEvents.stop()
+    }
+
+    /** Read the machines; the one picked stays picked, with what its agent now offers. */
+    private suspend fun loadHosts() {
+        runCatching { app.api.hosts() }
+            .onSuccess { hosts -> state.update { it.copy(hosts = hosts, hostsLoading = false, hostsError = null) } }
+            .onFailure { e ->
+                val why = if ((e as? ApiException)?.httpStatus == 404) "This server can't spawn seats yet." else "Machines not loaded: ${e.message}"
+                state.update { it.copy(hostsLoading = false, hostsError = why) }
+            }
     }
 
     fun pickHost(name: String) {
         if (state.value.hosts.firstOrNull { it.name == name }?.online != true) return
-        val roots = state.value.hosts.first { it.name == name }.roots
-        state.update { it.copy(host = name, roots = roots, recents = emptyList(), recentIndex = 0, listing = null, listingError = null, spawnError = null) }
+        val picked = state.value.hosts.first { it.name == name }
+        // The pool is on by default where the machine lets the seat choose, as the web panel's Start a seat.
+        val pooled = picked.spawn?.takeIf { it.offersPool && !it.poolOnly }?.let { true }
+        state.update {
+            it.copy(host = name, roots = picked.roots, recents = emptyList(), recentIndex = 0, listing = null, listingError = null,
+                spawnError = null, model = null, pooled = pooled)
+        }
         load?.cancel()
         load = viewModelScope.launch {
             val recents = runCatching { app.api.recentDirs(name) }.getOrDefault(emptyList())
@@ -83,6 +103,9 @@ class NewSeatViewModel(private val app: AppContainer) : ViewModel() {
 
     fun setTitle(title: String) = state.update { it.copy(title = title, titleEdited = true, spawnError = null) }
     fun setMode(mode: String) = state.update { it.copy(mode = mode) }
+    /** A model alias, or null for the machine's default. */
+    fun setModel(model: String?) = state.update { it.copy(model = model) }
+    fun setPooled(pooled: Boolean) = state.update { it.copy(pooled = pooled) }
     fun setPrompt(prompt: String) = state.update { it.copy(prompt = prompt) }
 
     /** Spawn; on success the screen closes and the snackbar takes over. */
@@ -92,7 +115,8 @@ class NewSeatViewModel(private val app: AppContainer) : ViewModel() {
         val path = s.path ?: return
         state.update { it.copy(spawning = true, spawnError = null) }
         viewModelScope.launch {
-            runCatching { app.spawns.spawn(host, path, s.title.trim(), s.mode, s.prompt.trim().ifEmpty { null }) }
+            val extras = spawnExtras(s.hosts.firstOrNull { it.name == host }, s.model, s.pooled)
+            runCatching { app.spawns.spawn(host, path, s.title.trim(), s.mode, s.prompt.trim().ifEmpty { null }, extras.model, extras.pooled) }
                 .onSuccess {
                     state.update { it.copy(spawning = false) }
                     onAccepted()

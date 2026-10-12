@@ -43,6 +43,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,6 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.claudiverse.core.Host
+import dev.claudiverse.core.SPAWN_MODELS
 import dev.claudiverse.core.FolderTab
 import dev.claudiverse.core.crumbs
 import dev.claudiverse.core.NewSeatState
@@ -62,7 +64,8 @@ import dev.claudiverse.app.spawn.NewSeatViewModel
 import dev.claudiverse.core.relativeTime
 import dev.claudiverse.core.crumbs
 
-private val MODES = listOf("default", "acceptEdits", "plan", "auto")
+/** Auto first, the default; the labels the web panel's Start a seat uses. */
+private val MODES = listOf("auto" to "Auto", "default" to "Ask before acting", "acceptEdits" to "Accept edits", "plan" to "Plan only")
 
 /**
  * New seat (design: Android Theme.dc.html, "Spawn a seat"): machine, folder
@@ -132,7 +135,8 @@ private fun MachineCard(host: Host, selected: Boolean, onClick: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(Modifier.size(7.dp).background(if (host.online) StatusColors.good else MaterialTheme.colorScheme.outline, CircleShape))
                 Text(
-                    if (host.online) "online · ${host.seats} seat${if (host.seats == 1) "" else "s"}" else "offline",
+                    if (host.online) "online · ${host.seats} seat${if (host.seats == 1) "" else "s"}"
+                    else host.lastSeenAt?.let { "last seen ${relativeTime(it)}" } ?: "offline",
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -261,15 +265,61 @@ private fun Details(ui: NewSeatState, vm: NewSeatViewModel) {
         OutlinedTextField(ui.title, vm::setTitle, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Permission mode", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // The modes this machine allows; all four from an older agent.
+            val allowed = ui.hosts.firstOrNull { it.name == ui.host }?.modes.orEmpty()
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MODES.forEach { m ->
-                    FilterChip(m == ui.mode, { vm.setMode(m) }, label = { Text(m) },
+                MODES.filter { (id, _) -> allowed.isEmpty() || id in allowed }.forEach { (m, label) ->
+                    FilterChip(m == ui.mode, { vm.setMode(m) }, label = { Text(label) },
                         leadingIcon = if (m == ui.mode) ({ Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }) else null)
                 }
             }
         }
+        ui.hosts.firstOrNull { it.name == ui.host }?.let { ModelAndPool(it, ui, vm) }
         OutlinedTextField(ui.prompt, vm::setPrompt, label = { Text("First prompt (optional)") },
             placeholder = { Text("What should this seat start on?") }, minLines = 3, modifier = Modifier.fillMaxWidth())
+    }
+}
+
+/**
+ * The model and the account pool, as the web panel's Start a seat: offered
+ * only where the machine's agent takes them (0.13+); otherwise shown as its
+ * own defaults, greyed, with how to update it. A pool-only machine (no Claude
+ * login of its own) always uses the pool.
+ */
+@Composable
+private fun ModelAndPool(host: Host, ui: NewSeatState, vm: NewSeatViewModel) {
+    val spawn = host.spawn
+    val offersModel = spawn?.offersModel == true
+    val offersPool = spawn?.offersPool == true
+    val poolOnly = spawn?.poolOnly == true
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Model", style = MaterialTheme.typography.labelMedium, color = muted)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val chosen = if (offersModel) ui.model else null
+            (listOf<Pair<String?, String>>(null to "Machine's default") + SPAWN_MODELS).forEach { (id, label) ->
+                FilterChip(id == chosen, { vm.setModel(id) }, enabled = offersModel, label = { Text(label) },
+                    leadingIcon = if (id == chosen) ({ Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }) else null)
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Use the server's account pool", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f),
+                color = if (offersPool && !poolOnly) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline)
+            Switch(
+                checked = poolOnly || (if (offersPool) ui.pooled == true else spawn?.pooled == true),
+                onCheckedChange = vm::setPooled,
+                enabled = offersPool && !poolOnly,
+            )
+        }
+        when {
+            poolOnly -> Text("${host.name} has no Claude login of its own, so its seats always use the pool.",
+                style = MaterialTheme.typography.bodySmall, color = muted)
+            !offersModel || !offersPool -> Text(
+                "${host.name}'s host agent is older than this form: the model and the pool are its own defaults. " +
+                    "Run the installer again on ${host.name} to choose them here.",
+                style = MaterialTheme.typography.bodySmall, color = muted,
+            )
+        }
     }
 }
 
