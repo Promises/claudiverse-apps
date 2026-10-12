@@ -167,11 +167,14 @@ fun ReauthorizeDialog(
             title = { Text("A different account") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // The server's sentence first: when account ids decide, either email can be missing.
                     Text(
-                        listOfNotNull(
-                            s.result.signedIn?.let { "That code signed in as $it" },
-                            s.result.stored?.let { "${account.label} is $it" },
-                        ).joinToString(", but ").ifEmpty { s.result.message } + ".",
+                        s.result.message.takeIf { it.isNotBlank() && !it.startsWith("HTTP ") } ?: (
+                            listOfNotNull(
+                                s.result.signedIn?.let { "That code signed in as $it" },
+                                s.result.stored?.let { "${account.label} is $it" },
+                            ).joinToString(", but ").ifEmpty { "That code signed in to a different account than ${account.label}" } + "."
+                            ),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text("Nothing was changed. Sign in again as the right account, or replace ${account.label} with the other one.",
