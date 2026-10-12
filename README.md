@@ -1,20 +1,31 @@
 # Claudiverse apps
 
-Desktop and mobile clients for a Claudiverse server: watch and drive Claude Code
-sessions ("seats") running on your machines, from a Mac or an Android phone.
+The Mac and Android apps for watching and steering your Claudiverse seats: the
+Claude Code sessions running on your machines, with their conversations,
+questions, permission requests, agents and background work.
+
+They are optional. A Claudiverse server already has a web panel that does
+this in any browser, with nothing extra to install. You need a running
+Claudiverse server first: see the [Claudiverse quick start](https://github.com/Promises/claudiverse#quick-start).
+
+**Quick start**: [install a release build](#install) (the Android APK or the Mac
+app) or [build from source](#building), then [connect to your server](#connect-to-your-server).
+
+What is here:
 
 - **core/**: the shared Kotlin Multiplatform library: the server's models, its
   REST and channel clients, and the rules that turn them into screens
   (transcript, seat list, fleets, profiles). Android uses its JVM target; the
   Mac app uses it as a native framework.
 - **macos/**: the macOS app (SwiftUI, macOS 26, Apple silicon).
-- **android/**: the Android app (Jetpack Compose). It reaches the server
-  through its own OpenVPN tunnel, which carries only the app's traffic and
-  connects by itself when the phone is off the server's network.
-- **openvpn/**: the OpenVPN 2 engine of
+- **android/**: the Android app (Jetpack Compose).
+- **openvpn/**: the Android app is built on the base of
   [ics-openvpn](https://github.com/schwabe/ics-openvpn) (OpenVPN for Android),
-  as a library: its Java core and the native OpenVPN, OpenSSL, LZO and LZ4.
-  OpenVPN, OpenSSL and LZ4 are git submodules.
+  whose OpenVPN engine this folder holds. The app uses it for one optional
+  feature: a built-in tunnel that reaches a server on a private network while
+  the phone is away from it, carrying only the app's own traffic. A server you
+  can reach directly needs no VPN at all. OpenVPN, OpenSSL and LZ4 are git
+  submodules.
 
 ## What it looks like
 
@@ -52,6 +63,8 @@ page, one release per version tag:
 
 `SHA256SUMS` lists every file's checksum. To build the apps yourself, see
 [Building](#building).
+
+## Connect to your server
 
 You need a running Claudiverse server and an account on it. In the Android app,
 open the Connection tab, enter the server URL and tap Save, then tap Sign in
