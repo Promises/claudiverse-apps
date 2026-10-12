@@ -8,7 +8,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import dev.claudiverse.core.AccountSignIn
 import dev.claudiverse.core.ApiException
+import dev.claudiverse.core.Reauthorization
 import dev.claudiverse.core.PoolChange
 import dev.claudiverse.core.PoolEvents
 import kotlinx.coroutines.launch
@@ -43,19 +47,54 @@ import dev.claudiverse.core.parseServerTime
 /** Server health, the Anthropic account pool, and the 5xx incident log. */
 data class PoolView(val health: Int?, val pool: Pool, val incidents: Incidents?)
 
+/** Signing an account in again: begin a sign-in, and complete it for one account (force replaces a different one). */
+class AccountSignIns(
+    val start: suspend () -> AccountSignIn,
+    val complete: suspend (AnthropicAccount, AccountSignIn, String, Boolean) -> Reauthorization,
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PoolScreen(vm: RemoteViewModel<PoolView>, events: PoolEvents, makePreferred: suspend (Long) -> Unit) {
+fun PoolScreen(
+    vm: RemoteViewModel<PoolView>,
+    events: PoolEvents,
+    watch: () -> Unit,
+    unwatch: () -> Unit,
+    makePreferred: suspend (Long) -> Unit,
+    signIns: AccountSignIns,
+    /** An account to re-authorize at once (from a "needs re-auth" notification); cleared once opened. */
+    reauthRequest: Long?,
+    onReauthOpened: () -> Unit,
+) {
     val remote by vm.remote.collectAsStateWithLifecycle()
     // The server announces every change to the order or the account in use: read the pool again then.
     DisposableEffect(events) {
-        events.start()
-        onDispose { events.stop() }
+        watch()
+        onDispose { unwatch() }
     }
     val change by events.latest.collectAsStateWithLifecycle()
     LaunchedEffect(change) { if (change != null) vm.refresh() }
     val scope = rememberCoroutineScope()
     var problem by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    var reauthId by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(reauthRequest) {
+        if (reauthRequest != null) {
+            reauthId = reauthRequest
+            onReauthOpened()
+        }
+    }
+    val loaded = remote.data
+    val reauthAccount = reauthId?.let { id -> loaded?.pool?.accounts?.firstOrNull { it.id == id } }
+    reauthAccount?.let { a ->
+        ReauthorizeDialog(
+            account = a,
+            start = signIns.start,
+            complete = { signIn, code, force -> signIns.complete(a, signIn, code, force) },
+            onDone = { done -> reauthId = null; notice = done; vm.refresh() },
+            onDismiss = { reauthId = null },
+        )
+    }
     RemoteContent(remote, vm::refresh) { view ->
         PullToRefreshBox(isRefreshing = remote.loading, onRefresh = vm::refresh, modifier = Modifier.fillMaxSize()) {
             LazyColumn(
@@ -78,8 +117,9 @@ fun PoolScreen(vm: RemoteViewModel<PoolView>, events: PoolEvents, makePreferred:
                 }
                 change?.let { c -> item { Text(changeLine(c, view.pool), style = MaterialTheme.typography.bodySmall) } }
                 problem?.let { item { Text(it, style = MaterialTheme.typography.bodySmall, color = StatusColors.bad) } }
+                notice?.let { item { Text(it, style = MaterialTheme.typography.bodyMedium, color = StatusColors.good) } }
                 items(view.pool.ordered, key = { it.id }) { a ->
-                    AccountCard(a, view.pool) {
+                    AccountCard(a, view.pool, onReauthorize = { notice = null; reauthId = a.id }) {
                         scope.launch {
                             problem = runCatching { makePreferred(a.id) }.fold(
                                 { vm.refresh(); null },
@@ -111,13 +151,16 @@ private fun changeLine(c: PoolChange, pool: Pool): String {
         "upgrade" -> "Seats moved back to " + (name(c.currentId) ?: "a better account")
         "degrade" -> "Seats moved to " + (name(c.currentId) ?: "a fallback account")
         "cooling" -> "An account cooled down after a rate limit"
-        else -> "Pool changed (${c.change})"
+        "needs_reauth" -> "${c.label ?: name(c.accountId) ?: "An account"} needs re-auth" + (c.reason?.let { ": $it" } ?: "")
+        "reauthorized" -> "${c.label ?: name(c.accountId) ?: "An account"} was re-authorized"
+        // A change this app does not know yet: the server's own sentence, else its name.
+        else -> c.text ?: "Pool changed (${c.change})"
     }
     return what + (c.at?.let { " · ${relativeTime(it)}" } ?: "")
 }
 
 @Composable
-private fun AccountCard(a: AnthropicAccount, pool: Pool, onMakePreferred: () -> Unit) {
+private fun AccountCard(a: AnthropicAccount, pool: Pool, onReauthorize: () -> Unit, onMakePreferred: () -> Unit) {
     val preferred = a.id == pool.preferredId
     val inUse = pool.inUseId
     var confirming by remember { mutableStateOf(false) }
@@ -136,8 +179,22 @@ private fun AccountCard(a: AnthropicAccount, pool: Pool, onMakePreferred: () -> 
                 Text(a.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 if (preferred) Pill("Preferred", MaterialTheme.colorScheme.primary)
                 if (inUse == a.id) Pill("In use", StatusColors.good)
-                Pill(a.status.replace('_', ' '), if (a.status == "available") StatusColors.good else StatusColors.bad)
-                if (a.tokenValid == false) Pill("token invalid", StatusColors.bad)
+                if (a.needsReauth) Pill("Needs re-auth", StatusColors.bad)
+                else Pill(a.status.replace('_', ' '), if (a.status == "available") StatusColors.good else StatusColors.bad)
+                if (a.tokenValid == false && !a.needsReauth) Pill("token invalid", StatusColors.bad)
+            }
+            // Out of the pool until someone signs in to it again: say why, and offer that sign-in here.
+            if (a.needsReauth) {
+                Text(
+                    "The server can no longer use this account" + ((a.reauthReason ?: a.cooldownReason)?.let { ": $it" } ?: "") +
+                        ". Seats use the next account until it is re-authorized.",
+                    style = MaterialTheme.typography.bodySmall, color = StatusColors.bad,
+                )
+                Button(
+                    onClick = onReauthorize,
+                    colors = ButtonDefaults.buttonColors(containerColor = StatusColors.bad, contentColor = StatusColors.onStatus),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Re-authorize" + (a.email?.let { " as $it" } ?: "")) }
             }
             if (preferred && inUse != null && inUse != a.id) pool.accounts.firstOrNull { it.id == inUse }?.let { other ->
                 Text("Preferred, but seats use ${other.label} now: the pool comes back here when this account recovers.",
@@ -147,7 +204,7 @@ private fun AccountCard(a: AnthropicAccount, pool: Pool, onMakePreferred: () -> 
                 Text("Cooling down until ${localTime(it)} (${relativeTime(it)})", style = MaterialTheme.typography.bodySmall)
             }
             // The reason outlives the cooldown on the server; it is history once the account is available.
-            a.cooldownReason?.let {
+            a.cooldownReason?.takeUnless { a.needsReauth }?.let {
                 Text((if (a.cooldownUntil == null) "Last cooldown: " else "Reason: ") + it, style = MaterialTheme.typography.bodySmall)
             }
             a.limits.forEach { l ->
@@ -174,6 +231,8 @@ private fun AccountCard(a: AnthropicAccount, pool: Pool, onMakePreferred: () -> 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Usage read ${relativeTime(a.usageCheckedAt)} · priority ${a.priority ?: "—"}", style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.weight(1f))
+                // Also offered on a healthy account: signing in again replaces its credentials in place.
+                if (!a.needsReauth) TextButton(onClick = onReauthorize) { Text("Re-authorize…") }
                 if (!preferred) TextButton(onClick = { confirming = true }) { Text("Make preferred…") }
             }
         }

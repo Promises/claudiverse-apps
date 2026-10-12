@@ -40,6 +40,8 @@ class MainActivity : ComponentActivity() {
     private var profile by mutableStateOf<VpnProfileInfo?>(null)
     /** A seat to open, from a "needs you" notification; AppRoot navigates and clears it. */
     private val openSeat = MutableStateFlow<SeatLink?>(null)
+    /** A pool account to re-authorize, from a "needs re-auth" notification; the Pool tab opens it and clears it. */
+    private val openReauth = MutableStateFlow<Long?>(null)
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) toast("Without notifications you will not hear when a seat needs you")
@@ -80,6 +82,7 @@ class MainActivity : ComponentActivity() {
                 AppRoot(
                     app,
                     openSeat = openSeat,
+                    openReauth = openReauth,
                     VpnActions(
                         profile = profile,
                         import = { picker.launch(arrayOf("*/*")) },
@@ -101,6 +104,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleSeatLink(intent: Intent?) {
+        val account = intent?.getLongExtra(WatchService.EXTRA_REAUTH_ACCOUNT_ID, -1) ?: -1
+        if (account >= 0) {
+            openReauth.value = account
+            intent?.removeExtra(WatchService.EXTRA_REAUTH_ACCOUNT_ID)
+        }
         val id = intent?.getLongExtra(WatchService.EXTRA_SEAT_ID, -1) ?: -1
         if (id < 0) return
         openSeat.value = SeatLink(id, intent?.getStringExtra(WatchService.EXTRA_SEAT_TITLE) ?: "Seat")

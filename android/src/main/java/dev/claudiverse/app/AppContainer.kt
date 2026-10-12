@@ -51,8 +51,14 @@ class AppContainer private constructor(context: Context) {
     val spawns = SpawnTracker(api, socket, scope)
     /** Pictures in transcripts, cached by file. */
     val images = TranscriptImages(api)
-    /** Live changes to the Anthropic account pool (operator:events "pool"), while the Pool tab is open. */
+    /** Live changes to the Anthropic account pool (operator:events "pool"), while the Pool tab or the watcher listens. */
     val poolEvents = PoolEvents(socket, scope)
+    private var poolWatchers = 0
+
+    /** The Pool tab and the watcher each listen to the pool; its channel stays joined while any of them does. */
+    fun watchPool() = synchronized(this) { if (poolWatchers++ == 0) poolEvents.start() }
+
+    fun unwatchPool() = synchronized(this) { if (--poolWatchers == 0) poolEvents.stop() }
     /** Seat profiles, kept current from operator:events while the Profiles screens are open. */
     val profiles = Profiles(api, socket, scope)
     private var profileWatchers = 0

@@ -85,7 +85,7 @@ data class SeatLink(val id: Long, val title: String)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppRoot(app: AppContainer, openSeat: MutableStateFlow<SeatLink?>, vpnActions: VpnActions) {
+fun AppRoot(app: AppContainer, openSeat: MutableStateFlow<SeatLink?>, openReauth: MutableStateFlow<Long?>, vpnActions: VpnActions) {
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
@@ -109,6 +109,11 @@ fun AppRoot(app: AppContainer, openSeat: MutableStateFlow<SeatLink?>, vpnActions
         val showing = top?.destination?.route?.startsWith("seat/") == true && top.arguments?.getLong("id") == l.id
         if (!showing) nav.navigate("seat/${l.id}?title=${Uri.encode(l.title)}")
         openSeat.value = null
+    }
+    // A "needs re-auth" notification: the Pool tab, where that account's re-authorize opens.
+    val reauth by openReauth.collectAsStateWithLifecycle()
+    LaunchedEffect(reauth) {
+        if (reauth != null && nav.currentBackStackEntry?.destination?.route != "pool") nav.navigate("pool") { launchSingleTop = true }
     }
 
     // New seat is a full-screen step (design): no app bar or tabs while it is open.
@@ -257,7 +262,15 @@ fun AppRoot(app: AppContainer, openSeat: MutableStateFlow<SeatLink?>, vpnActions
                         }
                     },
                     events = app.poolEvents,
+                    watch = app::watchPool,
+                    unwatch = app::unwatchPool,
                     makePreferred = { id -> app.api.makePreferred(id) },
+                    signIns = AccountSignIns(
+                        start = { app.api.startAccountSignIn() },
+                        complete = { account, signIn, code, force -> app.api.reauthorize(account, signIn, code, force) },
+                    ),
+                    reauthRequest = reauth,
+                    onReauthOpened = { openReauth.value = null },
                 )
             }
             composable("connection") {
