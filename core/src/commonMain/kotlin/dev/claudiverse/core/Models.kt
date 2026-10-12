@@ -320,7 +320,14 @@ data class AnthropicAccount(
     val limits: List<UsageLimit>,
     /** The account the pool would hand out now, when the server says (it may differ from the preferred one: that one can be cooling). */
     val inUse: Boolean? = null,
+    /** The Anthropic account's own email, as its sign-in reported it. */
+    val email: String? = null,
+    /** Why it needs re-auth ("refresh rejected with HTTP 400"), while it does. */
+    val reauthReason: String? = null,
 ) {
+    /** The server can no longer refresh its token: it is out of the pool until someone signs in to it again. */
+    val needsReauth: Boolean get() = status == "needs_reauth"
+
     companion object {
         fun from(o: JsonObject): AnthropicAccount {
             val limits = o.obj("usage")?.array("limits").objects().map {
@@ -343,6 +350,8 @@ data class AnthropicAccount(
                 usageCheckedAt = o.str("usage_checked_at"),
                 limits = limits,
                 inUse = o.bool("in_use"),
+                email = o.str("account_email"),
+                reauthReason = o.str("reauth_reason"),
             )
         }
     }
@@ -367,6 +376,27 @@ data class Pool(val accounts: List<AnthropicAccount>, val seats: List<SeatAssign
 
     /** This pool with the order a preference change answered with; who used what stays. */
     fun withOrder(order: PoolOrder) = copy(accounts = order.accounts, currentId = order.currentId ?: currentId)
+}
+
+/**
+ * A sign-in to an Anthropic account, begun: [url] is the page to open, and
+ * [verifier] and [state] go back with the code that page shows (PKCE; the
+ * server holds nothing between the two calls).
+ */
+data class AccountSignIn(val url: String, val verifier: String, val state: String)
+
+/** How re-authorizing an account ended. */
+sealed interface Reauthorization {
+    /** Its credentials are replaced in place: same account, label and priority. [account] when the server returned it. */
+    data class Done(val account: AnthropicAccount?) : Reauthorization
+
+    /**
+     * The code signed in to a different Anthropic account than the one stored
+     * ([stored] and [signedIn], when the server names them), or one whose
+     * email it could not read. Nothing changed, and the code is spent:
+     * replacing it anyway takes a fresh sign-in, completed with force.
+     */
+    data class OtherAccount(val stored: String?, val signedIn: String?, val message: String) : Reauthorization
 }
 
 /** What a preference change answers: every account in its new order, and the one in use when the server says. */

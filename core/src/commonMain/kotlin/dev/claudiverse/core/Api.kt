@@ -539,6 +539,72 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
         return PoolOrder(o.array("auths").objects().map(AnthropicAccount::from), o.long("current_id"))
     }
 
+    /** Begin a sign-in to an Anthropic account: the page to open, and what goes back with its code. App or super token. */
+    @Throws(Exception::class)
+    suspend fun startAccountSignIn(): AccountSignIn {
+        val o = post(listOf("anthropic_auths", "authorize"))
+        return AccountSignIn(o.str("url") ?: throw ApiException("Server sent no sign-in page"), o.text("verifier"), o.text("state"))
+    }
+
+    /**
+     * Give [account] fresh credentials from [code], what the sign-in page
+     * [signIn] opened shows (pasted as is: "code#state"). The account keeps
+     * its id, label and priority. A code for a different Anthropic account
+     * answers [Reauthorization.OtherAccount] and changes nothing, unless
+     * [force]. From a server without the re-authorize call, the account is
+     * enrolled again under its label and priority, which replaces its
+     * credentials in place but cannot check whose code it is.
+     */
+    @Throws(Exception::class)
+    suspend fun reauthorize(account: AnthropicAccount, signIn: AccountSignIn, code: String, force: Boolean = false): Reauthorization {
+        val pasted = code.trim()
+        val body = buildJsonObject {
+            put("code", pasted)
+            put("verifier", signIn.verifier)
+            put("state", signIn.state)
+            if (force) put("force", true)
+        }
+        return try {
+            Reauthorization.Done(post(listOf("anthropic_auths", "${account.id}", "reauthorize", "complete"), body).let(::accountIn))
+        } catch (e: ApiException) {
+            val json = e.body
+            when {
+                e.httpStatus == 409 -> Reauthorization.OtherAccount(
+                    stored = json?.str("stored_email") ?: account.email,
+                    signedIn = json?.str("signed_in_email"),
+                    message = json?.str("detail") ?: e.message.orEmpty(),
+                )
+                // No such route: an older server answers Phoenix's bare 404, with no error of its own.
+                // An unknown account is {error: "unknown auth"}, and must not be enrolled again.
+                e.httpStatus == 404 && json?.str("error") == null -> {
+                    val enrol = buildJsonObject {
+                        put("label", account.label)
+                        put("code", pasted)
+                        put("verifier", signIn.verifier)
+                        put("state", signIn.state)
+                        // Without it the account would drop to the default priority, last in the pool.
+                        account.priority?.let { put("priority", it) }
+                    }
+                    Reauthorization.Done(withDetail { post(listOf("anthropic_auths", "complete"), enrol) }.let(::accountIn))
+                }
+                else -> throw detailed(e)
+            }
+        }
+    }
+
+    /** The account a sign-in answered with: the rendered auth, bare or under "auth". */
+    private fun accountIn(o: JsonObject): AnthropicAccount? =
+        runCatching { AnthropicAccount.from(o.obj("auth") ?: o) }.getOrNull()
+
+    private suspend fun <T> withDetail(block: suspend () -> T): T =
+        try { block() } catch (e: ApiException) { throw detailed(e) }
+
+    /** The server's own sentence ("the pasted code did not match this attempt") rather than only its code. */
+    private fun detailed(e: ApiException): ApiException {
+        val detail = e.body?.str("detail") ?: return e
+        return ApiException("HTTP ${e.httpStatus}: $detail", e.httpStatus, e.retryAfterSeconds, e.fieldErrors, e.code).also { it.body = e.body }
+    }
+
     @Throws(Exception::class)
     suspend fun incidents(): Incidents {
         val o = get("incidents")

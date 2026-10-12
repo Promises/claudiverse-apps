@@ -115,9 +115,37 @@ class Fleets(private val api: Api, private val socket: PhoenixSocket, private va
  * fallback) or cooling (an account cooled after a rate limit). The list itself
  * is not in the event: refetch it.
  */
-data class PoolChange(val change: String, val by: String?, val at: String?, val currentId: Long?, val preferredId: Long?) {
+/**
+ * One change to the pool, as the server announces it. [change] is open:
+ * preferred, upgrade, degrade, cooling, reset, capped, step, needs_reauth,
+ * reauthorized, and whatever a newer server adds, which a reader shows
+ * generically. An account-level change names its account ([accountId],
+ * [label]) and, for needs_reauth, why ([reason]).
+ */
+data class PoolChange(
+    val change: String,
+    val by: String?,
+    val at: String?,
+    val currentId: Long?,
+    val preferredId: Long?,
+    val accountId: Long? = null,
+    val label: String? = null,
+    val reason: String? = null,
+    /** The server's own sentence for the change, when it sends one. */
+    val text: String? = null,
+) {
     companion object {
-        fun from(o: JsonObject) = PoolChange(o.str("change") ?: "unknown", o.str("by"), o.str("at"), o.long("current_id"), o.long("preferred_id"))
+        fun from(o: JsonObject) = PoolChange(
+            change = o.str("change") ?: "unknown",
+            by = o.str("by"),
+            at = o.str("at"),
+            currentId = o.long("current_id"),
+            preferredId = o.long("preferred_id"),
+            accountId = o.long("auth_id") ?: o.long("account_id"),
+            label = o.str("label"),
+            reason = o.str("reason"),
+            text = o.str("text"),
+        )
     }
 }
 
