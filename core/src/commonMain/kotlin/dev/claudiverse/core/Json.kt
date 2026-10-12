@@ -34,6 +34,11 @@ internal fun JsonObject.long(key: String): Long? = (this[key] as? JsonPrimitive)
 
 internal fun JsonObject.int(key: String): Int? = long(key)?.toInt()
 
+/** A number, whole or not; null when missing, null or not a number. */
+internal fun JsonObject.double(key: String): Double? = (this[key] as? JsonPrimitive)
+    ?.takeUnless { it is JsonNull || it.isString }
+    ?.doubleOrNull
+
 /** Null when missing or null, else [flag]. */
 internal fun JsonObject.bool(key: String): Boolean? = when (this[key]) {
     null, JsonNull -> null

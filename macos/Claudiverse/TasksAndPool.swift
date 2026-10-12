@@ -194,6 +194,7 @@ struct PoolView: View {
                     }
                 }
                 if let pool = p.pool { AssignmentSummary(pool: pool) }
+                UsageCharts()
                 if let inc = p.incidents, !inc.latest.isEmpty {
                     Text("Latest incidents" + (inc.since.map { " since \(relativeTime(iso: $0))" } ?? "")).font(.headline)
                     ForEach(Array(inc.latest.reversed().enumerated()), id: \.offset) { _, i in

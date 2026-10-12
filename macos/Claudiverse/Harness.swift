@@ -201,6 +201,25 @@ enum Harness {
             window.orderFront(nil)
             previewWindow = window
             return reply(["ok": true, "window": window.windowNumber])
+        case "usage":
+            // The Pool view's usage charts, drawn from a saved usage_history response (path), never the server.
+            guard let path = json["path"] as? String, let text = try? String(contentsOfFile: path, encoding: .utf8) else {
+                return reply(["error": "path: a usage_history response saved as JSON"])
+            }
+            let history = UsageHistory.companion.parse(text: text)
+            let window = previewWindow ?? NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 820),
+                                                   styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.title = "Usage preview"
+            window.contentView = NSHostingView(rootView: ScrollView {
+                UsageCharts(preset: history).padding(20).environment(model)
+            }.frame(width: 900, height: 820))
+            if let appearance = json["appearance"] as? String {
+                window.appearance = NSAppearance(named: appearance == "dark" ? .darkAqua : .aqua)
+            }
+            window.orderFront(nil)
+            previewWindow = window
+            return reply(["ok": true, "window": window.windowNumber])
         case "agents":
             // The agent switcher with sample agents (one per status), as a seat with a fork and subagents shows it.
             let window = previewWindow ?? NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 640),

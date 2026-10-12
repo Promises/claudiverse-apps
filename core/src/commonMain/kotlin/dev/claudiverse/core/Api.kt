@@ -520,6 +520,15 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
         get("tasks", query = listOf("state" to state, "fleet" to fleet, "limit" to "$limit"))
             .array("tasks").objects().map(FleetTask::from)
 
+    /**
+     * Each account's daily use of its weekly limit for the last [days] days,
+     * local to [tz] (the server's default zone when null), with the raw
+     * readings when [raw]. Any token.
+     */
+    @Throws(Exception::class)
+    suspend fun usageHistory(days: Int = 28, tz: String? = null, raw: Boolean = false): UsageHistory =
+        UsageHistory.from(get("anthropic_auths", "usage_history", query = listOf("days" to "$days", "tz" to tz, "raw" to if (raw) "1" else null)))
+
     @Throws(Exception::class)
     suspend fun pool(): Pool {
         val o = get("anthropic_auths")
