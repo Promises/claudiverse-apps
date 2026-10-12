@@ -205,10 +205,10 @@ struct ProfileDraft: Equatable {
     /// The draft as the form shows it, where a patched profile reads unpooled.
     var showsPooled: Bool { pooled && !Self.failsOverItself(runtime) }
 
-    /// A new profile: the server's defaults, on the first online machine.
+    /// A new profile: the server's defaults (auto mode, as for a new seat), on the first online machine.
     static func new(machine: String) -> ProfileFields {
         ProfileFields(machine: machine, folder: "", fleet: nil, role: "member", canNotify: false, runtime: "stock+mod", model: nil, effort: nil,
-                      permissionMode: "default", mcp: [], pooled: true, autostart: false, resume: "latest", debug: false)
+                      permissionMode: "auto", mcp: [], pooled: true, autostart: false, resume: "latest", debug: false)
     }
 }
 

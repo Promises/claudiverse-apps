@@ -8,6 +8,11 @@ final class ProfileDraftTests: XCTestCase {
         XCTAssertTrue(ProfileDraft(ProfileDraft.new(machine: "my-mac")).fields.pooled)
     }
 
+    /// A new profile starts in auto mode, as a new seat does (NewSeatState's default, in core).
+    func testANewProfileIsInAutoMode() {
+        XCTAssertEqual(ProfileDraft(ProfileDraft.new(machine: "my-mac")).fields.permissionMode, "auto")
+    }
+
     func testAPatchedProfileSavesAndShowsUnpooled() {
         var draft = ProfileDraft(ProfileDraft.new(machine: "my-mac"))
         draft.runtime = "patched"
