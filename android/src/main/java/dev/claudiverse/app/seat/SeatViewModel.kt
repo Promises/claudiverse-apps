@@ -19,6 +19,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import android.util.Log
 import dev.claudiverse.core.ApiException
+import dev.claudiverse.core.answeredByOpening
+import dev.claudiverse.core.nowMs
 import dev.claudiverse.core.BackgroundTask
 import dev.claudiverse.core.ChannelEvent
 import dev.claudiverse.core.QueuedMessage
@@ -136,12 +138,17 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
             }
         }
         channel.join()
-        // Opening the seat answers its request for the operator; one that
-        // arrives while the seat is on screen is answered too.
+        // Opening the seat answers a request that was waiting for the operator.
+        // One that arrives while it is on screen is left open, so it still
+        // alerts the operator's other devices (core's answeredByOpening).
         viewModelScope.launch {
-            combine(app.humanRequests.open, state.subscriptionCount) { open, watchers -> seatId in open && watchers > 0 }
-                .distinctUntilChanged()
-                .collect { if (it) app.humanRequests.resolve(seatId) }
+            var openedAt: Long? = null
+            combine(app.humanRequests.open, state.subscriptionCount) { open, watchers -> open[seatId] to (watchers > 0) }
+                .collect { (request, showing) ->
+                    openedAt = if (showing) openedAt ?: nowMs() else null
+                    val at = openedAt
+                    if (request != null && at != null && answeredByOpening(request, at)) app.humanRequests.resolve(seatId)
+                }
         }
     }
 
@@ -176,6 +183,8 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
      */
     fun send(text: String) {
         if (text.isBlank()) return
+        // Writing to the seat answers its request for the operator.
+        app.humanRequests.resolve(seatId)
         // Queue behind earlier queued messages so order holds.
         if (state.value.live?.idle == false || state.value.queued.isNotEmpty()) {
             app.outbox.enqueue(seatId, text)
@@ -363,6 +372,7 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
      */
     fun sendFiles(files: List<Upload>, note: String) {
         if (files.isEmpty()) return
+        app.humanRequests.resolve(seatId)
         state.update { it.copy(uploading = true, notice = null) }
         viewModelScope.launch {
             runCatching { files.map { app.api.uploadFile(seatId, it) } }

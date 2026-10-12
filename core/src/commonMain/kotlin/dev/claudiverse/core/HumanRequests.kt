@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 /**
  * Open requests from seats asking for the operator, kept current while
@@ -23,6 +25,22 @@ import kotlinx.serialization.json.JsonObject
  * read on every (re)join and every [RECHECK_MS] as a safety net: a request
  * that arrives while the socket is down is still picked up.
  */
+/**
+ * Whether opening a seat at [openedAtMs] answers [request]: it does when the
+ * request was already waiting, last asked before the seat was opened (or
+ * when it says no time). One that arrives, or is asked again, while the seat
+ * is open stays open, so it still reaches the operator's other devices; the
+ * operator answers it by acting in the seat or opening it again.
+ */
+fun answeredByOpening(request: HumanRequest, openedAtMs: Long): Boolean {
+    val asked = parseServerTime(request.updatedAt ?: request.insertedAt) ?: return true
+    return asked <= openedAtMs
+}
+
+/** Now, for [answeredByOpening]: when a seat was opened. */
+@OptIn(ExperimentalTime::class)
+fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
+
 class HumanRequests(private val api: Api, private val socket: PhoenixSocket, private val scope: CoroutineScope) {
 
     private val state = MutableStateFlow<Map<Long, HumanRequest>>(emptyMap())

@@ -75,6 +75,8 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
     val ui: StateFlow<SeatState> = state.asStateFlow()
 
     private val watched = MutableStateFlow(false)
+    /** When the seat was last opened (it is showing), or null while hidden. */
+    private val openedAt = MutableStateFlow<Long?>(null)
     private val channel = client.socket.channel("session:$seatId", buildJsonObject { put("role", "observer") })
     /** Fed from the socket and from the caller's thread: guarded. */
     private val feed = SeatFeed()
@@ -105,10 +107,14 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
             }
         }
         channel.join()
-        // Opening the seat answers its request for the operator; one that
-        // arrives while the seat is on screen is answered too.
+        // Opening the seat answers a request that was waiting for the operator.
+        // One that arrives while it is open is left open, so the operator's
+        // other devices still alert: answering it then silently was how a seat
+        // left open in an active window swallowed every request it made.
         scope.launch {
-            combine(client.humanRequests.open, watched) { open, on -> on && seatId in open }
+            combine(client.humanRequests.open, openedAt) { open, at ->
+                at != null && open[seatId]?.let { answeredByOpening(it, at) } == true
+            }
                 .distinctUntilChanged()
                 .collect { if (it) client.humanRequests.resolve(seatId) }
         }
@@ -116,7 +122,11 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
 
     /** The seat's screen is showing (true) or hidden (false). Showing again also checks the socket. */
     fun setWatched(on: Boolean) {
-        if (on && !watched.value) client.socket.checkAlive()
+        if (on && !watched.value) {
+            client.socket.checkAlive()
+            openedAt.value = nowMs()
+        }
+        if (!on) openedAt.value = null
         watched.value = on
     }
 
@@ -173,6 +183,8 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
      */
     fun send(text: String) {
         if (text.isBlank()) return
+        // Writing to the seat answers its request for the operator.
+        client.humanRequests.resolve(seatId)
         // Queue behind earlier queued messages so order holds.
         if (state.value.live?.idle == false || state.value.queued.isNotEmpty()) {
             client.outbox.enqueue(seatId, text)
@@ -359,6 +371,7 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
      */
     fun sendFiles(files: List<Upload>, note: String) {
         if (files.isEmpty()) return
+        client.humanRequests.resolve(seatId)
         state.update { it.copy(uploading = true, notice = null) }
         scope.launch {
             try {
