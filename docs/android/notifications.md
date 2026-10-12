@@ -130,8 +130,8 @@ Whether a seat may page the operator at all is a seat setting, separate from the
 - [Builds and updates](builds-and-updates.md)
 - [In-app VPN](vpn.md)
 - [Settings, permissions and troubleshooting](settings-and-troubleshooting.md)
-- Server: [Human requests](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/human-requests.md)
-- Runners and tools: [cv-mcp: seat, ping and question tools](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/mcp-seats.md)
+- Server: [Human requests](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/human-requests.md)
+- Runners and tools: [cv-mcp: seat, ping and question tools](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/mcp-seats.md)
 - Mac: [Notifications and the menu bar](../mac/notifications.md)
 
 ## Source

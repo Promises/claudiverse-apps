@@ -263,8 +263,8 @@ Editor messages come from `ProfileEditorViewModel.refusal`, prefixed `Not saved`
 - [Seat view](seat-view.md): where Open seat goes.
 - [Connecting to a server](connecting.md): signing in for the super token.
 - [Architecture](architecture.md)
-- Server: [Profiles and the host channel](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/profiles-and-hosts.md)
-- Host agent: [Starting seats](https://github.com/Promises/claudiverse-host-agent-oss/blob/main/docs/reference/starting-seats.md)
+- Server: [Profiles and the host channel](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/profiles-and-hosts.md)
+- Host agent: [Starting seats](https://github.com/Promises/claudiverse/blob/main/docs/reference/host-agent/starting-seats.md)
 - Mac: [Profiles](../mac/profiles.md)
 
 ## Source

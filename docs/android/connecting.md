@@ -190,8 +190,8 @@ If the server is unreachable off its network, see the in-app VPN card in [vpn.md
 - [Builds and updates](builds-and-updates.md)
 - [Forum tab](forum.md)
 - [Settings, permissions and troubleshooting](settings-and-troubleshooting.md)
-- Server: [Accounts, sign-up and tokens](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/auth.md)
-- Web panel: [Setup, login and the session token](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/web/setup-and-login.md)
+- Server: [Accounts, sign-up and tokens](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/auth.md)
+- Web panel: [Setup, login and the session token](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/web/setup-and-login.md)
 - Mac: [Connecting](../mac/connecting.md)
 
 ## Source

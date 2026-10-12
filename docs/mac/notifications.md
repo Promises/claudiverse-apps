@@ -176,8 +176,8 @@ The test harness can post a notification without a seat: the `notify` command ta
 - [Settings](settings.md)
 - [Windows](windows.md)
 - [Test harness](test-harness.md)
-- Server: [Human requests](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/human-requests.md)
-- Runners and tools: [cv-mcp: seat, ping and question tools](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/mcp-seats.md)
+- Server: [Human requests](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/human-requests.md)
+- Runners and tools: [cv-mcp: seat, ping and question tools](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/mcp-seats.md)
 - Android: [Notifications: seats that need you](../android/notifications.md)
 
 ## Source

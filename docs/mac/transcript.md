@@ -277,9 +277,9 @@ a row of its own.
 - [Questions and permissions](questions-and-permissions.md)
 - [Seat list](seat-list.md)
 - [Core library](core-library.md)
-- Server: [HTTP mirror, inbox long-poll and liveness](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/mirror-inbox-liveness.md)
-- Mod: [Mirroring](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/mod/mirroring.md)
-- Web panel: [The seat view](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/web/seat-view.md)
+- Server: [HTTP mirror, inbox long-poll and liveness](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/mirror-inbox-liveness.md)
+- Mod: [Mirroring](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/mod/mirroring.md)
+- Web panel: [The seat view](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/web/seat-view.md)
 - Android: [Seat view](../android/seat-view.md)
 
 ## Source

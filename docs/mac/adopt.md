@@ -188,8 +188,8 @@ Other cases:
 - [New seat](new-seat.md)
 - [Test harness](test-harness.md)
 - [Troubleshooting](troubleshooting.md)
-- Server: [Profiles and the host channel](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/profiles-and-hosts.md)
-- Host agent: [Adopting a hand-started seat](https://github.com/Promises/claudiverse-host-agent-oss/blob/main/docs/reference/adopt.md)
+- Server: [Profiles and the host channel](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/profiles-and-hosts.md)
+- Host agent: [Adopting a hand-started seat](https://github.com/Promises/claudiverse/blob/main/docs/reference/host-agent/adopt.md)
 
 ## Source
 

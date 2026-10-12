@@ -140,11 +140,11 @@ Access and paging need an app or super token (the `Api` documents both as "App o
 - [Seat profiles](profiles.md)
 - [New seat (spawning a seat)](new-seat.md)
 - [Settings, permissions and troubleshooting](settings-and-troubleshooting.md)
-- Server: [Tool levels and paging](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/access-and-notify.md), [App builds and seat files](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/app-builds-and-seat-files.md), [HTTP mirror, inbox long-poll and liveness](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/mirror-inbox-liveness.md), [Sessions and Rooms](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/sessions-and-rooms.md)
-- Mod: [The inbox: remote input and inbox commands](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/mod/inbox.md)
-- Web panel: [The seat view](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/web/seat-view.md)
-- Runners and tools: [cvctl: the orchestrator CLI](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/cvctl.md), [cv-mcp: the claudiverse MCP server (overview)](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/mcp.md), [cv-mcp: seat, ping and question tools](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/mcp-seats.md)
-- Host agent: [Seat control](https://github.com/Promises/claudiverse-host-agent-oss/blob/main/docs/reference/seat-control.md)
+- Server: [Tool levels and paging](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/access-and-notify.md), [App builds and seat files](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/app-builds-and-seat-files.md), [HTTP mirror, inbox long-poll and liveness](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/mirror-inbox-liveness.md), [Sessions and Rooms](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/sessions-and-rooms.md)
+- Mod: [The inbox: remote input and inbox commands](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/mod/inbox.md)
+- Web panel: [The seat view](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/web/seat-view.md)
+- Runners and tools: [cvctl: the orchestrator CLI](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/cvctl.md), [cv-mcp: the claudiverse MCP server (overview)](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/mcp.md), [cv-mcp: seat, ping and question tools](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/mcp-seats.md)
+- Host agent: [Seat control](https://github.com/Promises/claudiverse/blob/main/docs/reference/host-agent/seat-control.md)
 - Mac: [Images](../mac/images.md), [Seat view](../mac/seat-view.md)
 
 ## Source

@@ -166,8 +166,8 @@ A human request row carries `id`, `session_id`, `seat_title`, `summary`, optiona
 ## Related pages
 
 [Claudiverse for Android](README.md), [Architecture](architecture.md), [Connecting to a server](connecting.md), [New seat (spawning a seat)](new-seat.md), [Seat view](seat-view.md), [Questions and permissions](questions-and-permissions.md), [Notifications: seats that need you](notifications.md), [Seat profiles](profiles.md)
-- Server: [Sessions and Rooms](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/sessions-and-rooms.md)
-- Web panel: [Dashboard](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/web/dashboard.md)
+- Server: [Sessions and Rooms](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/sessions-and-rooms.md)
+- Web panel: [Dashboard](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/web/dashboard.md)
 - Mac: [Seat list](../mac/seat-list.md)
 
 ## Source

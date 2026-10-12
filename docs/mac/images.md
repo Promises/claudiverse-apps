@@ -156,7 +156,7 @@ Other cases: Copy, Save and Open do nothing for an image that has not finished l
 - [Seat view](seat-view.md)
 - [Windows](windows.md)
 - [Settings](settings.md)
-- Server: [App builds and seat files](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/app-builds-and-seat-files.md)
+- Server: [App builds and seat files](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/app-builds-and-seat-files.md)
 - Android: [Seat controls](../android/seat-controls.md)
 
 ## Source

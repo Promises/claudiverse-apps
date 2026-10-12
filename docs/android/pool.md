@@ -135,8 +135,8 @@ Each entry in `latest` is shown as its pretty-printed JSON text (the `Incident.s
 ## Related pages
 
 [Claudiverse for Android](README.md), [Architecture](architecture.md), [Connecting to a server](connecting.md), [Forum tab](forum.md), [Tasks tab](tasks.md), [Notifications: seats that need you](notifications.md), [Settings, permissions and troubleshooting](settings-and-troubleshooting.md)
-- Server: [The Anthropic account pool](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/account-pool.md)
-- Web panel: [Accounts page](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/web/accounts.md)
+- Server: [The Anthropic account pool](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/account-pool.md)
+- Web panel: [Accounts page](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/web/accounts.md)
 - Mac: [Account pool](../mac/account-pool.md)
 
 ## Source

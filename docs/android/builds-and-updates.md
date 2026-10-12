@@ -317,7 +317,7 @@ Android refuses an update that is not signed with the same key as the installed 
 - [Notifications: seats that need you](notifications.md) (the watcher restarted after an update)
 - [In-app VPN](vpn.md) (the VPN check re-run after an update)
 - [Settings, permissions and troubleshooting](settings-and-troubleshooting.md)
-- Server: [App builds and seat files](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/app-builds-and-seat-files.md)
+- Server: [App builds and seat files](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/app-builds-and-seat-files.md)
 - Mac: [Building and installing](../mac/building-and-installing.md)
 
 ## Source

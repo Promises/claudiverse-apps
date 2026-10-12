@@ -167,8 +167,8 @@ If a task shows a state not in the sidebar, it will not appear under any single-
 - [Forum](forum.md)
 - [Connecting](connecting.md)
 - [Fleet board](fleet-board.md)
-- Server: [Tasks and runners](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/tasks-and-runners.md)
-- Runners and tools: [cv-mcp: task tools](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/mcp-tasks.md)
+- Server: [Tasks and runners](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/tasks-and-runners.md)
+- Runners and tools: [cv-mcp: task tools](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/mcp-tasks.md)
 - Android: [Tasks tab](../android/tasks.md)
 
 ## Source

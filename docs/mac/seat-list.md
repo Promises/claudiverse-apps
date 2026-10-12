@@ -162,8 +162,8 @@ The list view uses `id`, `title`, `display_title`, `status`, `activity`, `model`
 - [Windows](windows.md)
 - [Questions and permissions](questions-and-permissions.md)
 - [Notifications](notifications.md)
-- Server: [Sessions and Rooms](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/sessions-and-rooms.md)
-- Web panel: [Dashboard](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/web/dashboard.md)
+- Server: [Sessions and Rooms](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/sessions-and-rooms.md)
+- Web panel: [Dashboard](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/web/dashboard.md)
 - Android: [Seat list (the Seats tab)](../android/seat-list.md)
 
 ## Source

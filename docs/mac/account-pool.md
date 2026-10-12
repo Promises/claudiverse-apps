@@ -214,8 +214,8 @@ An error from one action stays on screen until the next successful pool read or 
 - [Connecting](connecting.md)
 - [Troubleshooting](troubleshooting.md)
 - [Core library](core-library.md)
-- Server: [The Anthropic account pool](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/account-pool.md)
-- Web panel: [Accounts page](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/web/accounts.md)
+- Server: [The Anthropic account pool](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/account-pool.md)
+- Web panel: [Accounts page](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/web/accounts.md)
 - Android: [Pool tab](../android/pool.md)
 
 ## Source

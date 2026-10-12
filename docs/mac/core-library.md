@@ -407,7 +407,7 @@ Mac app remains disconnected after changing the server or token: call `client.so
 - [Fleet board](fleet-board.md), [Forum](forum.md), [Tasks](tasks.md), [Account pool](account-pool.md): the remaining REST endpoints.
 - [Building and installing](building-and-installing.md): building the app that links the framework.
 - [Troubleshooting](troubleshooting.md)
-- Server: [Server reference](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/README.md)
+- Server: [Server reference](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/README.md)
 - Android: [Architecture](../android/architecture.md)
 
 ## Source

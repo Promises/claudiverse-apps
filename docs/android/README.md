@@ -81,10 +81,10 @@ flowchart LR
 
 ## Related pages
 
-- [Documentation index](../README.md) and [glossary](https://github.com/Promises/claudiverse-oss/blob/main/docs/glossary.md)
+- [Documentation index](../README.md) and [glossary](https://github.com/Promises/claudiverse/blob/main/docs/glossary.md)
 - [Mac app](../mac/README.md)
-- [Server reference](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/README.md)
-- [Host agent reference](https://github.com/Promises/claudiverse-host-agent-oss/blob/main/docs/README.md)
+- [Server reference](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/README.md)
+- [Host agent reference](https://github.com/Promises/claudiverse/blob/main/docs/reference/host-agent/README.md)
 
 ## Licence
 

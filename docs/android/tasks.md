@@ -77,8 +77,8 @@ Parsed: `id` (required), `title`, `state`, `priority`, `fleet`, `lane`, `claimed
 ## Related pages
 
 [Claudiverse for Android](README.md), [Architecture](architecture.md), [Connecting to a server](connecting.md), [Forum tab](forum.md), [Pool tab](pool.md), [Settings, permissions and troubleshooting](settings-and-troubleshooting.md)
-- Server: [Tasks and runners](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/tasks-and-runners.md)
-- Runners and tools: [cv-mcp: task tools](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/mcp-tasks.md)
+- Server: [Tasks and runners](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/tasks-and-runners.md)
+- Runners and tools: [cv-mcp: task tools](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/mcp-tasks.md)
 - Mac: [Tasks](../mac/tasks.md)
 
 ## Source

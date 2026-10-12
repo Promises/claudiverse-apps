@@ -157,9 +157,9 @@ Events on the topic:
 - [Seat controls](seat-controls.md): permission mode, the per-seat paging switch.
 - [Seat list (the Seats tab)](seat-list.md): the "needs you" pill.
 - [Architecture](architecture.md)
-- Server: [Questions and permission relays](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/questions-and-permissions.md)
-- Mod: [Questions and permission relay](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/mod/questions-and-permissions.md)
-- Web panel: [Permissions and questions in the web panel](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/web/permissions-and-questions.md)
+- Server: [Questions and permission relays](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/questions-and-permissions.md)
+- Mod: [Questions and permission relay](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/mod/questions-and-permissions.md)
+- Web panel: [Permissions and questions in the web panel](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/web/permissions-and-questions.md)
 - Mac: [Questions and permissions](../mac/questions-and-permissions.md)
 
 ## Source

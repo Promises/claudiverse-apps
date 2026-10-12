@@ -214,8 +214,8 @@ A profile stuck in `unregistered` means the machine started the seat but it neve
 - [Fleet board](fleet-board.md)
 - [Connecting](connecting.md)
 - [Core library](core-library.md)
-- Server: [Profiles and the host channel](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/profiles-and-hosts.md)
-- Host agent: [Starting seats](https://github.com/Promises/claudiverse-host-agent-oss/blob/main/docs/reference/starting-seats.md)
+- Server: [Profiles and the host channel](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/profiles-and-hosts.md)
+- Host agent: [Starting seats](https://github.com/Promises/claudiverse/blob/main/docs/reference/host-agent/starting-seats.md)
 - Android: [Seat profiles](../android/profiles.md)
 
 ## Source

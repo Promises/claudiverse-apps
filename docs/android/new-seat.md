@@ -159,9 +159,9 @@ Resume errors (from the seat view, not this screen): `Not resumed: the seat is s
 ## Related pages
 
 [Claudiverse for Android](README.md), [Architecture](architecture.md), [Connecting to a server](connecting.md), [Seat list (the Seats tab)](seat-list.md), [Seat view](seat-view.md), [Seat controls](seat-controls.md), [Seat profiles](profiles.md), [Settings, permissions and troubleshooting](settings-and-troubleshooting.md)
-- Server: [Profiles and the host channel](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/profiles-and-hosts.md)
-- Runners and tools: [cv-mcp: lifecycle tools](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/mcp-lifecycle.md)
-- Host agent: [Roots and folder browsing](https://github.com/Promises/claudiverse-host-agent-oss/blob/main/docs/reference/roots.md), [Starting seats](https://github.com/Promises/claudiverse-host-agent-oss/blob/main/docs/reference/starting-seats.md)
+- Server: [Profiles and the host channel](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/profiles-and-hosts.md)
+- Runners and tools: [cv-mcp: lifecycle tools](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/mcp-lifecycle.md)
+- Host agent: [Roots and folder browsing](https://github.com/Promises/claudiverse/blob/main/docs/reference/host-agent/roots.md), [Starting seats](https://github.com/Promises/claudiverse/blob/main/docs/reference/host-agent/starting-seats.md)
 - Mac: [New seat](../mac/new-seat.md), [Settings](../mac/settings.md)
 
 ## Source

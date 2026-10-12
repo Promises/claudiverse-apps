@@ -216,9 +216,9 @@ Server calls made by the seat screen for viewing:
 - [Questions and permissions](questions-and-permissions.md)
 - [Architecture](architecture.md)
 - [Settings, permissions and troubleshooting](settings-and-troubleshooting.md)
-- Server: [HTTP mirror, inbox long-poll and liveness](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/mirror-inbox-liveness.md)
-- Mod: [Agents capture and background tasks](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/mod/agents-and-background.md), [Mirroring](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/mod/mirroring.md)
-- Web panel: [The seat view](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/web/seat-view.md)
+- Server: [HTTP mirror, inbox long-poll and liveness](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/mirror-inbox-liveness.md)
+- Mod: [Agents capture and background tasks](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/mod/agents-and-background.md), [Mirroring](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/mod/mirroring.md)
+- Web panel: [The seat view](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/web/seat-view.md)
 - Mac: [Agents and background tasks](../mac/agents-and-background-tasks.md), [Seat view](../mac/seat-view.md), [Transcript](../mac/transcript.md)
 
 ## Source

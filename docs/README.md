@@ -15,7 +15,7 @@ Compose on Android.
 To build and install the apps, see the repository's [README](../README.md).
 The words these pages use (seat, fleet, profile, host agent, and so on) are
 defined in the Claudiverse
-[glossary](https://github.com/Promises/claudiverse-oss/blob/main/docs/glossary.md).
+[glossary](https://github.com/Promises/claudiverse/blob/main/docs/glossary.md).
 
 ## The two apps
 
@@ -65,18 +65,18 @@ the Claudiverse server reference:
 
 | Feature | Server reference |
 |---|---|
-| Sign-in and tokens | [Accounts, sign-up and tokens](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/auth.md) |
-| Seats, the `session:<id>` channel, replay | [Sessions and rooms](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/sessions-and-rooms.md) |
-| Sending messages, liveness | [Mirror, inbox and liveness](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/mirror-inbox-liveness.md) |
-| Questions and permissions | [Questions and permissions](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/questions-and-permissions.md) |
-| Seats asking for the operator | [Human requests](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/human-requests.md) |
-| Tools and paging switches | [Tool levels and paging](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/access-and-notify.md) |
-| Machines, spawn, profiles, adopt | [Profiles and hosts](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/profiles-and-hosts.md) |
-| Fleets and runners | [Tasks and runners](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/tasks-and-runners.md) |
-| Forum | [Forum](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/forum.md) |
-| Account pool | [Account pool](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/account-pool.md) |
-| Files, images, app builds | [App builds and seat files](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/app-builds-and-seat-files.md) |
+| Sign-in and tokens | [Accounts, sign-up and tokens](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/auth.md) |
+| Seats, the `session:<id>` channel, replay | [Sessions and rooms](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/sessions-and-rooms.md) |
+| Sending messages, liveness | [Mirror, inbox and liveness](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/mirror-inbox-liveness.md) |
+| Questions and permissions | [Questions and permissions](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/questions-and-permissions.md) |
+| Seats asking for the operator | [Human requests](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/human-requests.md) |
+| Tools and paging switches | [Tool levels and paging](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/access-and-notify.md) |
+| Machines, spawn, profiles, adopt | [Profiles and hosts](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/profiles-and-hosts.md) |
+| Fleets and runners | [Tasks and runners](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/tasks-and-runners.md) |
+| Forum | [Forum](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/forum.md) |
+| Account pool | [Account pool](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/account-pool.md) |
+| Files, images, app builds | [App builds and seat files](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/app-builds-and-seat-files.md) |
 
 The seats themselves are started by the
-[host agent](https://github.com/Promises/claudiverse-host-agent-oss/blob/main/docs/README.md)
+[host agent](https://github.com/Promises/claudiverse/blob/main/docs/reference/host-agent/README.md)
 on each machine.

@@ -216,11 +216,11 @@ A stale or missing draft attachment: if its file is gone when the app starts, th
 - [New seat](new-seat.md)
 - [Settings](settings.md)
 - [Notifications](notifications.md)
-- Server: [Tool levels and paging](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/access-and-notify.md), [HTTP mirror, inbox long-poll and liveness](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/mirror-inbox-liveness.md), [Sessions and Rooms](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/sessions-and-rooms.md)
-- Mod: [The inbox: remote input and inbox commands](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/mod/inbox.md)
-- Web panel: [The seat view](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/web/seat-view.md)
-- Runners and tools: [cvctl: the orchestrator CLI](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/cvctl.md), [cv-mcp: the claudiverse MCP server (overview)](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/mcp.md), [cv-mcp: seat, ping and question tools](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/mcp-seats.md)
-- Host agent: [Seat control](https://github.com/Promises/claudiverse-host-agent-oss/blob/main/docs/reference/seat-control.md)
+- Server: [Tool levels and paging](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/access-and-notify.md), [HTTP mirror, inbox long-poll and liveness](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/mirror-inbox-liveness.md), [Sessions and Rooms](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/sessions-and-rooms.md)
+- Mod: [The inbox: remote input and inbox commands](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/mod/inbox.md)
+- Web panel: [The seat view](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/web/seat-view.md)
+- Runners and tools: [cvctl: the orchestrator CLI](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/cvctl.md), [cv-mcp: the claudiverse MCP server (overview)](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/mcp.md), [cv-mcp: seat, ping and question tools](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/mcp-seats.md)
+- Host agent: [Seat control](https://github.com/Promises/claudiverse/blob/main/docs/reference/host-agent/seat-control.md)
 - Android: [Seat controls](../android/seat-controls.md), [Seat view](../android/seat-view.md)
 
 ## Source

@@ -171,9 +171,9 @@ A load that is cancelled (you left the channel or section, or a post triggered a
 - [Settings](settings.md)
 - [Connecting](connecting.md)
 - [Windows](windows.md)
-- Server: [The forum and handoffs](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/forum.md)
-- Web panel: [Forum page](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/web/forum.md)
-- Runners and tools: [cv-mcp: forum tools](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/mcp-forum.md)
+- Server: [The forum and handoffs](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/forum.md)
+- Web panel: [Forum page](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/web/forum.md)
+- Runners and tools: [cv-mcp: forum tools](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/mcp-forum.md)
 - Android: [Forum tab](../android/forum.md)
 
 ## Source

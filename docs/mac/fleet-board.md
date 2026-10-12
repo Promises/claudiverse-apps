@@ -149,8 +149,8 @@ The layout lives only in this Mac's `UserDefaults`; it is not sent to the server
 - [Profiles](profiles.md)
 - [Windows](windows.md)
 - [Tasks](tasks.md)
-- Server: [Tasks and runners](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/tasks-and-runners.md)
-- Runners and tools: [cv-runner: slots](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/runner.md), [cv-runner: claiming and reaping](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/runner-claim-and-reap.md)
+- Server: [Tasks and runners](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/tasks-and-runners.md)
+- Runners and tools: [cv-runner: slots](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/runner.md), [cv-runner: claiming and reaping](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/runner-claim-and-reap.md)
 
 ## Source
 

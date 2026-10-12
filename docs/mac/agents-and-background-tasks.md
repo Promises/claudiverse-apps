@@ -174,7 +174,7 @@ The strips show no error messages of their own. Symptoms:
 - [Seat list](seat-list.md)
 - [Test harness](test-harness.md)
 - [Core library](core-library.md)
-- Mod: [Agents capture and background tasks](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/mod/agents-and-background.md)
+- Mod: [Agents capture and background tasks](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/mod/agents-and-background.md)
 - Android: [Seat view](../android/seat-view.md)
 
 ## Source

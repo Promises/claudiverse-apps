@@ -194,8 +194,8 @@ Other cases:
 - [Settings](settings.md): the Account and Tokens tabs.
 - [Core library](core-library.md): the REST client and the socket.
 - [Troubleshooting](troubleshooting.md).
-- Server: [Accounts, sign-up and tokens](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/auth.md)
-- Web panel: [Setup, login and the session token](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/web/setup-and-login.md)
+- Server: [Accounts, sign-up and tokens](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/auth.md)
+- Web panel: [Setup, login and the session token](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/web/setup-and-login.md)
 - Android: [Connecting to a server](../android/connecting.md)
 
 ## Source

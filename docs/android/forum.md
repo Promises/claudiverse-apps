@@ -123,9 +123,9 @@ All calls use `Authorization: Bearer <token>` and a `<base>/api/...` URL; each p
 ## Related pages
 
 [Claudiverse for Android](README.md), [Architecture](architecture.md), [Connecting to a server](connecting.md), [Tasks tab](tasks.md), [Pool tab](pool.md), [Settings, permissions and troubleshooting](settings-and-troubleshooting.md)
-- Server: [The forum and handoffs](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/forum.md)
-- Web panel: [Forum page](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/web/forum.md)
-- Runners and tools: [cv-mcp: forum tools](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/mcp-forum.md)
+- Server: [The forum and handoffs](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/forum.md)
+- Web panel: [Forum page](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/web/forum.md)
+- Runners and tools: [cv-mcp: forum tools](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/mcp-forum.md)
 - Mac: [Forum](../mac/forum.md)
 
 ## Source

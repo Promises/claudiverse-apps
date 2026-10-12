@@ -176,9 +176,9 @@ Machine unavailable: the machine is offline (listed but disabled). If every mach
 - [Connecting](connecting.md)
 - [Settings](settings.md)
 - [Keyboard shortcuts](keyboard-shortcuts.md)
-- Server: [Profiles and the host channel](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/profiles-and-hosts.md)
-- Runners and tools: [cv-mcp: lifecycle tools](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/runners/mcp-lifecycle.md)
-- Host agent: [Roots and folder browsing](https://github.com/Promises/claudiverse-host-agent-oss/blob/main/docs/reference/roots.md), [Starting seats](https://github.com/Promises/claudiverse-host-agent-oss/blob/main/docs/reference/starting-seats.md)
+- Server: [Profiles and the host channel](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/profiles-and-hosts.md)
+- Runners and tools: [cv-mcp: lifecycle tools](https://github.com/Promises/claudiverse/blob/main/docs/reference/runners/mcp-lifecycle.md)
+- Host agent: [Roots and folder browsing](https://github.com/Promises/claudiverse/blob/main/docs/reference/host-agent/roots.md), [Starting seats](https://github.com/Promises/claudiverse/blob/main/docs/reference/host-agent/starting-seats.md)
 - Android: [New seat (spawning a seat)](../android/new-seat.md)
 
 ## Source

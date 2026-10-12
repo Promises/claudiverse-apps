@@ -297,8 +297,8 @@ it is `Set the server URL and token in Settings`.
 - [New seat](new-seat.md): starting seats in the allowed folders.
 - [Account pool](account-pool.md)
 - [Troubleshooting](troubleshooting.md)
-- Server: [Accounts, sign-up and tokens](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/auth.md), [Profiles and the host channel](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/profiles-and-hosts.md)
-- Host agent: [Installing and running the host agent as a service](https://github.com/Promises/claudiverse-host-agent-oss/blob/main/docs/reference/install-and-service.md), [Roots and folder browsing](https://github.com/Promises/claudiverse-host-agent-oss/blob/main/docs/reference/roots.md)
+- Server: [Accounts, sign-up and tokens](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/auth.md), [Profiles and the host channel](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/profiles-and-hosts.md)
+- Host agent: [Installing and running the host agent as a service](https://github.com/Promises/claudiverse/blob/main/docs/reference/host-agent/install-and-service.md), [Roots and folder browsing](https://github.com/Promises/claudiverse/blob/main/docs/reference/host-agent/roots.md)
 - Android: [New seat (spawning a seat)](../android/new-seat.md), [Settings, permissions and troubleshooting](../android/settings-and-troubleshooting.md)
 
 ## Source

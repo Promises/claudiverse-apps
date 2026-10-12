@@ -290,7 +290,7 @@ Topics the Android app joins:
 - [Seat list (the Seats tab)](seat-list.md), [Seat view](seat-view.md), [New seat (spawning a seat)](new-seat.md)
 - [Notifications: seats that need you](notifications.md), [In-app VPN](vpn.md), [Builds and updates](builds-and-updates.md)
 - [Settings, permissions and troubleshooting](settings-and-troubleshooting.md)
-- Server: [Server reference](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/README.md)
+- Server: [Server reference](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/README.md)
 - Mac: [Core library](../mac/core-library.md)
 
 ## Source

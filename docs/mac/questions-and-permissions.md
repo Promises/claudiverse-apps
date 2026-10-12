@@ -162,9 +162,9 @@ Events `human_request` (payload as one request above) and `human_request_resolve
 - [Notifications](notifications.md)
 - [Fleet board](fleet-board.md)
 - [Connecting](connecting.md)
-- Server: [Questions and permission relays](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/server/questions-and-permissions.md)
-- Mod: [Questions and permission relay](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/mod/questions-and-permissions.md)
-- Web panel: [Permissions and questions in the web panel](https://github.com/Promises/claudiverse-oss/blob/main/docs/reference/services/web/permissions-and-questions.md)
+- Server: [Questions and permission relays](https://github.com/Promises/claudiverse/blob/main/docs/reference/server/questions-and-permissions.md)
+- Mod: [Questions and permission relay](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/mod/questions-and-permissions.md)
+- Web panel: [Permissions and questions in the web panel](https://github.com/Promises/claudiverse/blob/main/docs/reference/services/web/permissions-and-questions.md)
 - Android: [Questions and permissions](../android/questions-and-permissions.md)
 
 ## Source
