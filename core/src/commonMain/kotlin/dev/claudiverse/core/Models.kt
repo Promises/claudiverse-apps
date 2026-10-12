@@ -194,6 +194,10 @@ data class Host(
     val runtimes: List<HostRuntime> = emptyList(),
     /** MCP servers in the machine's own catalog, by name (agent 0.7.0+). */
     val mcp: List<String> = emptyList(),
+    /** When its agent last joined or left, as the server recorded it; null when it never did. */
+    val lastSeenAt: String? = null,
+    /** What a plain spawn may ask this machine for (host agent 0.13+); null from an older agent. */
+    val spawn: SpawnChoices? = null,
 ) {
     companion object {
         fun from(o: JsonObject) = Host(
@@ -206,8 +210,20 @@ data class Host(
             modes = o.array("modes").strings(),
             runtimes = o.array("runtimes").objects().mapNotNull { r -> r.str("name")?.let { HostRuntime(it, r.str("version")) } },
             mcp = o.array("mcp").strings(),
+            lastSeenAt = o.str("last_seen_at"),
+            spawn = o.obj("spawn")?.let { SpawnChoices(it.array("options").strings(), it.flag("pool_only"), it.flag("pooled")) },
         )
     }
+}
+
+/**
+ * What a plain spawn may ask a machine's agent for: [options] it takes
+ * ("model", "pooled"); [poolOnly] when it has no Claude login of its own, so
+ * its seats always use the server's pool; [pooled], its own default.
+ */
+data class SpawnChoices(val options: List<String>, val poolOnly: Boolean, val pooled: Boolean) {
+    val offersModel: Boolean get() = "model" in options
+    val offersPool: Boolean get() = "pooled" in options
 }
 
 /** A runtime name in a machine's agent config, with the Claude Code version it runs. */

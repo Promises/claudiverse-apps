@@ -149,6 +149,35 @@ data class PoolChange(
     }
 }
 
+/**
+ * Machines coming and going: each "host" event on operator:events (a host
+ * agent joined or left) counts up [changes] while started, so a list of
+ * machines knows to read them again.
+ */
+class HostEvents(private val socket: PhoenixSocket, private val scope: CoroutineScope) {
+
+    private val state = MutableStateFlow(0L)
+    val changes: StateFlow<Long> = state.asStateFlow()
+
+    private val lock = SynchronizedObject()
+    private var job: Job? = null
+    private var channel: PhoenixSocket.Channel? = null
+
+    fun start() = synchronized(lock) {
+        if (job != null) return@synchronized
+        val ch = socket.channel(Fleets.TOPIC).also { channel = it }
+        job = scope.launch { ch.events.collect { e -> if (e.event == "host") state.value++ } }
+        ch.join()
+    }
+
+    fun stop() = synchronized(lock) {
+        job?.cancel()
+        job = null
+        channel?.leave()
+        channel = null
+    }
+}
+
 /** The pool's changes, live while started: [latest] is the newest one since the app started. */
 class PoolEvents(private val socket: PhoenixSocket, private val scope: CoroutineScope) {
 

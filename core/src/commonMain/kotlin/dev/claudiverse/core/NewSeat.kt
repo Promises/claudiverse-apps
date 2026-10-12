@@ -13,6 +13,26 @@ import kotlinx.coroutines.launch
 
 enum class FolderTab { Recent, Browse }
 
+/** The models a seat can be started with: aliases Claude Code resolves, by label. */
+val SPAWN_MODELS = listOf("opus" to "Opus", "sonnet" to "Sonnet", "haiku" to "Haiku")
+
+/** What a spawn asks a machine for beyond its folder, name and mode. */
+data class SpawnExtras(val model: String?, val pooled: Boolean?)
+
+/**
+ * The model and pooling a spawn on [host] sends, as the web panel's Start a
+ * seat: a model only to an agent that offers it, pooling only to one that
+ * offers it and is not pool-only (always pooled, nothing to ask). Nothing for
+ * a null choice, so a caller with no pickers sends what it always did.
+ */
+fun spawnExtras(host: Host?, model: String?, pooled: Boolean?): SpawnExtras {
+    val spawn = host?.spawn
+    return SpawnExtras(
+        model = model?.takeIf { it.isNotBlank() && spawn?.offersModel == true },
+        pooled = pooled?.takeIf { spawn?.offersPool == true && !spawn.poolOnly },
+    )
+}
+
 data class NewSeatState(
     val hosts: List<Host> = emptyList(),
     val hostsLoading: Boolean = true,
@@ -30,6 +50,10 @@ data class NewSeatState(
     /** True once the user has typed a title: it then no longer follows the folder. */
     val titleEdited: Boolean = false,
     val mode: String = "auto",
+    /** A model alias to start with ([SPAWN_MODELS]); null leaves the machine's default. */
+    val model: String? = null,
+    /** Use the server's account pool; null leaves the machine's default. */
+    val pooled: Boolean? = null,
     val prompt: String = "",
     val spawning: Boolean = false,
     val spawnError: String? = null,

@@ -280,12 +280,15 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
      * since starting a seat can take up to 90 s.
      */
     @Throws(Exception::class)
-    suspend fun spawn(host: String, path: String, title: String, mode: String, prompt: String?): String {
+    suspend fun spawn(host: String, path: String, title: String, mode: String, prompt: String?, model: String? = null, pooled: Boolean? = null): String {
         val body = buildJsonObject {
             put("path", path)
             put("title", title)
             put("mode", mode)
             prompt?.takeIf { it.isNotBlank() }?.let { put("prompt", it) }
+            // Only what the machine's agent offers (see spawnExtras): an older one would get a 409.
+            model?.let { put("model", it) }
+            pooled?.let { put("pooled", it) }
         }
         return post(listOf("hosts", host, "spawn"), body).requireStr("spawn_id")
     }

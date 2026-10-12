@@ -59,9 +59,9 @@ class SpawnTracker(private val api: Api, socket: PhoenixSocket, private val scop
 
     /** Ask [host] to spawn; returns once the server has accepted it. Throws on a refusal (403, 429, 504…). */
     @Throws(Exception::class)
-    suspend fun spawn(host: String, path: String, title: String, mode: String, prompt: String?) {
+    suspend fun spawn(host: String, path: String, title: String, mode: String, prompt: String?, model: String? = null, pooled: Boolean? = null) {
         listen()
-        track(api.spawn(host, path, title, mode, prompt), SpawnNotice.Pending(SpawnOp.Spawn, title, host))
+        track(api.spawn(host, path, title, mode, prompt, model, pooled), SpawnNotice.Pending(SpawnOp.Spawn, title, host))
     }
 
     /** Ask a stopped [seat]'s machine to start it again; returns once accepted. Throws on a refusal (409, 422, 429, 504…). */
