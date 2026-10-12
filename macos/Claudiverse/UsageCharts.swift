@@ -178,6 +178,16 @@ struct DailyUseChart: View {
     let accounts: [UsageSeries]
     @State private var hovered: Date?
 
+    /// The window's days, from the first to the end of the last.
+    static func dayRange(_ accounts: [UsageSeries]) -> ClosedRange<Date> {
+        let dates = accounts.flatMap { $0.days.map(\.date) }
+        guard let first = dates.min(), let last = dates.max() else { return Date.now...Date.now.addingTimeInterval(86_400) }
+        return first...(Calendar.current.date(byAdding: .day, value: 1, to: last) ?? last)
+    }
+
+    /// The scale's top: the tallest day with room above it, and never under 10%.
+    static func yTop(_ tallest: Double) -> Double { max(10, (tallest * 1.15).rounded(.up)) }
+
     /// The tooltip sits on the side away from the pointer: right while it hovers the left half, left otherwise.
     static func tooltipSide(_ at: Date?, _ span: [Date]) -> Alignment {
         guard let at, let first = span.min(), let last = span.max(), last > first else { return .topLeading }
@@ -216,6 +226,9 @@ struct DailyUseChart: View {
             }
             .chartForegroundStyleScale(domain: accounts.map(\.label), range: accounts.map(\.color))
             .chartLegend(.hidden)
+            // Every day of the window, whatever has data, and at least 0-10%: a first day with little data is a small bar.
+            .chartXScale(domain: Self.dayRange(accounts))
+            .chartYScale(domain: 0...Self.yTop(top))
             .chartYAxis {
                 AxisMarks(position: .leading) { v in
                     AxisGridLine().foregroundStyle(UsagePalette.grid)
@@ -298,7 +311,8 @@ private struct WeekBurnChart: View {
                     RuleMark(y: .value("Limit", 100))
                         .foregroundStyle(UsagePalette.reference)
                         .lineStyle(StrokeStyle(lineWidth: 1))
-                    ForEach(weeks, id: \.0.id) { a, w in
+                    ForEach(Array(weeks.enumerated()), id: \.element.0.id) { i, aw in
+                        let (a, w) = aw
                         ForEach(Array(w.points.enumerated()), id: \.offset) { _, p in
                             LineMark(x: .value("Time", p.at), y: .value("% of weekly limit", p.pct), series: .value("Account", a.label))
                                 .foregroundStyle(a.color)
@@ -312,10 +326,11 @@ private struct WeekBurnChart: View {
                                     Text("\(a.label) \(UsageCharts.pct(last.pct))").font(.caption).foregroundStyle(.primary)
                                 }
                         }
+                        // Labels a line apart: two accounts' resets can fall close together.
                         RuleMark(x: .value("Reset", w.reset))
                             .foregroundStyle(a.color.opacity(0.8))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                            .annotation(position: .top, alignment: .center, spacing: 2) {
+                            .annotation(position: .top, alignment: .trailing, spacing: 2 + CGFloat(i) * 13) {
                                 Text("\(a.label) resets").font(.caption2).foregroundStyle(.secondary)
                             }
                     }
@@ -324,7 +339,7 @@ private struct WeekBurnChart: View {
                 .chartForegroundStyleScale(domain: accounts.map(\.label), range: accounts.map(\.color))
                 .chartLegend(.hidden)
                 .chartYScale(domain: 0...105)
-                .chartXScale(domain: (weeks.map(\.1.start).min() ?? .now)...(weeks.map(\.1.reset).max() ?? .now))
+                .chartXScale(domain: (weeks.map(\.1.start).min() ?? .now)...(weeks.map(\.1.reset).max() ?? .now).addingTimeInterval(3 * 3600))
                 .chartYAxis {
                     AxisMarks(position: .leading, values: [0, 25, 50, 75, 100]) { v in
                         AxisGridLine().foregroundStyle(UsagePalette.grid)

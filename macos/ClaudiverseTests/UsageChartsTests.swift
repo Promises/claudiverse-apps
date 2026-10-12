@@ -40,6 +40,14 @@ final class UsageChartsTests: XCTestCase {
         XCTAssertNil(series[1].week, "never saw a reset: no week")
     }
 
+    /// One day of data still spans the whole window, on a scale of at least 0-10%.
+    func testTheDailyChartSpansTheWindowAndAtLeastTenPercent() {
+        let range = DailyUseChart.dayRange(series)
+        XCTAssertEqual(range.upperBound.timeIntervalSince(range.lowerBound), 2 * 86_400, accuracy: 3600)
+        XCTAssertEqual(DailyUseChart.yTop(0), 10)
+        XCTAssertEqual(DailyUseChart.yTop(18.25), 21)
+    }
+
     func testPercentagesAndTheTooltipSide() {
         XCTAssertEqual(UsageCharts.pct(18), "18%")
         XCTAssertEqual(UsageCharts.pct(18.25), "18.2%")
