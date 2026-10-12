@@ -31,6 +31,9 @@ class ProfilesViewModel(private val app: AppContainer) : ViewModel() {
     override fun onCleared() = app.unwatchProfiles()
 }
 
+/** A new profile's starting fields: its seat runs in auto mode unless another is chosen. */
+private val NEW_PROFILE = ProfileFields(machine = "", folder = "", permissionMode = "auto")
+
 data class ProfileEditorState(
     /** Null while creating a new profile. */
     val id: Long? = null,
@@ -38,9 +41,9 @@ data class ProfileEditorState(
     val profile: Profile? = null,
     val name: String = "",
     /** What the edit started from: the fields as last read or saved. */
-    val base: ProfileFields = ProfileFields(machine = "", folder = ""),
+    val base: ProfileFields = NEW_PROFILE,
     val baseRevision: Long = 0,
-    val draft: ProfileFields = ProfileFields(machine = "", folder = ""),
+    val draft: ProfileFields = NEW_PROFILE,
     /** After a 409: the server's fields, and the ones both sides changed. */
     val theirs: ProfileFields? = null,
     val conflicts: List<String> = emptyList(),
