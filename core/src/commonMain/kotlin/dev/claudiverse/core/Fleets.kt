@@ -186,19 +186,23 @@ class PoolEvents(private val socket: PhoenixSocket, private val scope: Coroutine
 
     private val lock = SynchronizedObject()
     private var job: Job? = null
+    private var channel: PhoenixSocket.Channel? = null
 
     fun start() = synchronized(lock) {
         if (job != null) return@synchronized
-        val ch = socket.channel(Fleets.TOPIC)
+        val ch = socket.channel(Fleets.TOPIC).also { channel = it }
         job = scope.launch {
             ch.events.collect { e -> if (e.event == "pool") state.value = PoolChange.from(e.payload) }
         }
         ch.join()
     }
 
+    /** Stop listening, and give the channel claim back: a stop and start (sign out, sign in) must not add a claim. */
     fun stop() = synchronized(lock) {
         job?.cancel()
         job = null
+        channel?.leave()
+        channel = null
     }
 }
 
