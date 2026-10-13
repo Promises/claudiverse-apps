@@ -13,9 +13,6 @@ import kotlinx.coroutines.launch
 
 enum class FolderTab { Recent, Browse }
 
-/** The models a seat can be started with: aliases Claude Code resolves, by label. */
-val SPAWN_MODELS = listOf("opus" to "Opus", "sonnet" to "Sonnet", "haiku" to "Haiku")
-
 /** What a spawn asks a machine for beyond its folder, name and mode. */
 data class SpawnExtras(val model: String?, val pooled: Boolean?)
 
@@ -50,7 +47,7 @@ data class NewSeatState(
     /** True once the user has typed a title: it then no longer follows the folder. */
     val titleEdited: Boolean = false,
     val mode: String = "auto",
-    /** A model alias to start with ([SPAWN_MODELS]); null leaves the machine's default. */
+    /** A model id to start with ([SessionChoices.spawnModels]); null leaves the machine's default. */
     val model: String? = null,
     /** Use the server's account pool; null leaves the machine's default. */
     val pooled: Boolean? = null,

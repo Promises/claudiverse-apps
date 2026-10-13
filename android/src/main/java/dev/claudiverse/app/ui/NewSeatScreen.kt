@@ -56,7 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.claudiverse.core.Host
-import dev.claudiverse.core.SPAWN_MODELS
+import dev.claudiverse.core.SessionChoices
 import dev.claudiverse.core.FolderTab
 import dev.claudiverse.core.crumbs
 import dev.claudiverse.core.NewSeatState
@@ -297,7 +297,9 @@ private fun ModelAndPool(host: Host, ui: NewSeatState, vm: NewSeatViewModel) {
         Text("Model", style = MaterialTheme.typography.labelMedium, color = muted)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val chosen = if (offersModel) ui.model else null
-            (listOf<Pair<String?, String>>(null to "Machine's default") + SPAWN_MODELS).forEach { (id, label) ->
+            // Exact ids, only those the machine's Claude Code knows: an alias resolves differently by version.
+            val models = SessionChoices.spawnModels(spawn?.version).map { it.id to it.label }
+            (listOf<Pair<String?, String>>(null to "Machine's default") + models).forEach { (id, label) ->
                 FilterChip(id == chosen, { vm.setModel(id) }, enabled = offersModel, label = { Text(label) },
                     leadingIcon = if (id == chosen) ({ Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }) else null)
             }

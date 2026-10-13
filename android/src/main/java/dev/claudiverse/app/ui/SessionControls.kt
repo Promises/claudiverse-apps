@@ -71,6 +71,8 @@ import kotlinx.io.buffered
 @Composable
 fun SessionSheet(
     runningModel: String?,
+    /** The seat's Claude Code version: a model newer than it is not offered. */
+    clientVersion: String?,
     effort: String?,
     mode: String?,
     appliedMode: String?,
@@ -96,9 +98,10 @@ fun SessionSheet(
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Model", style = MaterialTheme.typography.labelLarge)
-                Text("Running: ${runningModel ?: "unknown"} (a seat reports no 1M suffix, so which window it has is not shown)",
+                Text("Running: ${runningModel ?: "unknown"}. Claude 5 models have the 1M window as they are.",
                     style = MaterialTheme.typography.bodySmall)
-                SessionChoices.models.forEach { ModelRow(it, runningModel, onModel) }
+                SessionChoices.models.filter { it.knownBy(clientVersion) || SessionChoices.isRunning(it, runningModel) }
+                    .forEach { ModelRow(it, runningModel, onModel) }
                 // Open by itself when the seat runs an older model, so the running mark is never hidden.
                 var older by rememberSaveable { mutableStateOf(SessionChoices.olderModels.any { SessionChoices.isRunning(it, runningModel) }) }
                 TextButton(onClick = { older = !older }) { Text(if (older) "▾ Older models" else "▸ Older models") }

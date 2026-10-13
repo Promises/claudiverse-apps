@@ -190,6 +190,7 @@ fun SeatScreen(vm: SeatViewModel, showInfo: Boolean, onShowInfo: (Boolean) -> Un
         )
         if (showSettings) SessionSheet(
             runningModel = ui.seat?.model,
+            clientVersion = ui.seat?.clientVersion,
             effort = ui.effort,
             mode = ui.live?.permissionMode,
             appliedMode = ui.appliedMode,

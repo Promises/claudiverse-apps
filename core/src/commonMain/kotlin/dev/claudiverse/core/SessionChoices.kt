@@ -1,38 +1,49 @@
 package dev.claudiverse.core
 
 /**
- * A model as `/model` takes it: the exact id, so the fleet's Opus 5 and
- * Opus 5.5 seats can be told apart (a bare "opus" alias cannot). [oneM] adds
- * the `[1m]` variant, the 1M-context build; dropping the suffix would quietly
- * switch a seat to the smaller window. Ids are the ones Claude Code 2.1.286/287
- * carries.
+ * A model as `/model` and `--model` take it: the exact id, so the fleet's
+ * Opus 5 and Opus 5.5 seats can be told apart (a bare "opus" alias cannot).
+ *
+ * [oneM]: the model's window is 200K and its `[1m]` variant opts into 1M;
+ * dropping the suffix would quietly switch a seat to the smaller window. A
+ * model whose bare id is already 1M has no oneM: `[1m]` changes nothing
+ * there, and most of them have no `[1m]` spelling at all.
+ *
+ * [since]: the first Claude Code version that knows the id, when the fleet
+ * may still run older ones.
  */
-data class ModelChoice(val label: String, val id: String, val oneM: Boolean)
+data class ModelChoice(val label: String, val id: String, val oneM: Boolean, val since: String? = null) {
+    /** Whether Claude Code [version] knows this model. An unknown version counts as too old for a model with a [since]. */
+    fun knownBy(version: String?): Boolean = since == null || (version != null && versionAtLeast(version, since))
+}
 
 /** An id a seat command takes, and how it is shown. */
 data class Choice(val id: String, val label: String)
 
 /** What the apps offer for a seat's model, effort and permission mode. */
 object SessionChoices {
-    // 1M where the model has a 1M build: Anthropic's listing says 1M, or Claude
-    // Code itself carries a [1m] id for it (Sonnet 4.6 and 4.5 are listed at
-    // 200K but ship 1M builds).
+    // As Claude Code's own model catalog has it (measured in 2.1.287, 2.1.291
+    // and 2.1.296, which agree): every Claude 5 model, Opus 4.7 and Opus 4.8
+    // are native 1M, so their bare id is the 1M window. [1m] opts in only on a
+    // 200K model with the 1M beta, never on Opus 4.5/4.1 or Haiku 4.5.
+    // Haiku 5.5 is new in 2.1.293.
     val models = listOf(
-        ModelChoice("Opus 5.5", "claude-opus-5-5", oneM = true),
-        ModelChoice("Opus 5", "claude-opus-5", oneM = true),
-        ModelChoice("Sonnet 5.5", "claude-sonnet-5-5", oneM = true),
-        ModelChoice("Sonnet 5", "claude-sonnet-5", oneM = true),
-        ModelChoice("Fable 5.1", "claude-fable-5-1", oneM = true),
-        ModelChoice("Fable 5", "claude-fable-5", oneM = true),
-        ModelChoice("Mythos 5.1", "claude-mythos-5-1", oneM = true),
-        ModelChoice("Mythos 5", "claude-mythos-5", oneM = true),
+        ModelChoice("Opus 5.5", "claude-opus-5-5", oneM = false),
+        ModelChoice("Opus 5", "claude-opus-5", oneM = false),
+        ModelChoice("Sonnet 5.5", "claude-sonnet-5-5", oneM = false),
+        ModelChoice("Sonnet 5", "claude-sonnet-5", oneM = false),
+        ModelChoice("Fable 5.1", "claude-fable-5-1", oneM = false),
+        ModelChoice("Fable 5", "claude-fable-5", oneM = false),
+        ModelChoice("Mythos 5.1", "claude-mythos-5-1", oneM = false),
+        ModelChoice("Mythos 5", "claude-mythos-5", oneM = false),
+        ModelChoice("Haiku 5.5", "claude-haiku-5-5", oneM = false, since = "2.1.293"),
         ModelChoice("Haiku 4.5", "claude-haiku-4-5", oneM = false),
     )
 
     /** Earlier generations, folded away so the list stays short. Claude 3 is left out. */
     val olderModels = listOf(
-        ModelChoice("Opus 4.8", "claude-opus-4-8", oneM = true),
-        ModelChoice("Opus 4.7", "claude-opus-4-7", oneM = true),
+        ModelChoice("Opus 4.8", "claude-opus-4-8", oneM = false),
+        ModelChoice("Opus 4.7", "claude-opus-4-7", oneM = false),
         ModelChoice("Opus 4.6", "claude-opus-4-6", oneM = true),
         ModelChoice("Opus 4.5", "claude-opus-4-5", oneM = false),
         ModelChoice("Opus 4.1", "claude-opus-4-1", oneM = false),
@@ -56,7 +67,35 @@ object SessionChoices {
 
     val modes = listOf(Choice("default", "Default"), Choice("acceptEdits", "Accept edits"), Choice("plan", "Plan"), Choice("auto", "Auto"))
 
-    /** A seat reports e.g. "claude-opus-5-5" (or a dated id); match exactly so 5 and 5.5 stay apart. */
-    fun isRunning(model: ModelChoice, running: String?): Boolean =
-        running == model.id || running?.startsWith(model.id + "-2") == true
+    /**
+     * A seat reports e.g. "claude-opus-5-5" (or a dated id); match exactly so 5
+     * and 5.5 stay apart. A model a seat was started with may carry `[1m]`.
+     */
+    fun isRunning(model: ModelChoice, running: String?): Boolean {
+        val r = running?.replace(ONE_M, "") ?: return false
+        return r == model.id || r.startsWith(model.id + "-2")
+    }
+
+    private val ONE_M = Regex("""\[1m]""", RegexOption.IGNORE_CASE)
+
+    /**
+     * The models a seat can be started with on a machine running Claude Code
+     * [version]: exact ids, so the seat shows as the model it runs. A bare
+     * "haiku" would be Haiku 4.5 on a machine before 2.1.293 and 5.5 after.
+     */
+    fun spawnModels(version: String?): List<ModelChoice> =
+        listOf("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-haiku-4-5")
+            .map { id -> models.single { it.id == id } }
+            .filter { it.knownBy(version) }
+}
+
+/** Dotted versions compared part by part as numbers ("2.1.296" >= "2.1.293"); a part that is not a number counts as 0. */
+internal fun versionAtLeast(version: String, min: String): Boolean {
+    val a = version.split('.').map { it.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
+    val b = min.split('.').map { it.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
+    for (i in 0 until maxOf(a.size, b.size)) {
+        val d = a.getOrElse(i) { 0 } - b.getOrElse(i) { 0 }
+        if (d != 0) return d > 0
+    }
+    return true
 }
