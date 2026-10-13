@@ -293,6 +293,49 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
         return post(listOf("hosts", host, "spawn"), body).requireStr("spawn_id")
     }
 
+    /** What restarting [seatId] would do, without doing it. App or super token. */
+    @Throws(Exception::class)
+    suspend fun planSeatRestart(seatId: Long, includeSelf: Boolean = false, caller: String? = null): RestartPlan {
+        val o = post(listOf("sessions", "$seatId", "restart"), seatRestartBody(dryRun = true, includeSelf, caller))
+        return RestartPlan.from(o.obj("seat") ?: throw ApiException("Server sent no plan"))
+    }
+
+    /**
+     * Restart [seatId] on its machine's current Claude Code (adopting it into
+     * a tmux seat when it runs outside tmux); returns the restart's id, which
+     * its "seat_restart" events carry. A seat that is not idle enough is
+     * refused, never queued: [RestartRefused] with the server's sentence.
+     */
+    @Throws(Exception::class)
+    suspend fun restartSeat(seatId: Long, includeSelf: Boolean = false, caller: String? = null): String =
+        try {
+            post(listOf("sessions", "$seatId", "restart"), seatRestartBody(dryRun = false, includeSelf, caller)).requireStr("restart_id")
+        } catch (e: ApiException) {
+            if (e.httpStatus == 409) throw RestartRefused(e.body?.str("error") ?: e.message.orEmpty(), e.body?.str("reason_code"))
+            throw e
+        }
+
+    /** What restarting the idle seats on [host] (null: every machine) would do: each seat's plan, skips included. */
+    @Throws(Exception::class)
+    suspend fun planIdleRestart(host: String?, options: RestartOptions = RestartOptions()): List<RestartPlan> =
+        post(idleRestartPath(host), restartBody(options, dryRun = true)).array("seats").objects().map(RestartPlan::from)
+
+    /** Restart the idle seats on [host] (null: every machine), one at a time; progress comes as events ([Restarts]). */
+    @Throws(Exception::class)
+    suspend fun restartIdle(host: String?, options: RestartOptions = RestartOptions()): RestartBatchStarted {
+        val o = post(idleRestartPath(host), restartBody(options, dryRun = false))
+        return RestartBatchStarted(o.requireStr("batch_id"), o.array("seats").objects().map(RestartPlan::from))
+    }
+
+    private fun idleRestartPath(host: String?) =
+        if (host == null) listOf("hosts", "restart_idle") else listOf("hosts", host, "restart_idle")
+
+    private fun seatRestartBody(dryRun: Boolean, includeSelf: Boolean, caller: String?) = buildJsonObject {
+        if (dryRun) put("dry_run", true)
+        if (includeSelf) put("include_self", true)
+        caller?.let { put("caller", it) }
+    }
+
     /**
      * Add an allowed folder on [host]. Super token. The machine decides: 403
      * (code not_allowed) unless its own config allows remote roots ([Host.remoteRoots]),

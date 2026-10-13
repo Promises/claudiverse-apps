@@ -39,6 +39,17 @@ class EventClaimsTest {
     }
 
     @Test
+    fun restartsGiveTheirClaimBackOnStop() {
+        val restarts = Restarts(socket, scope)
+        repeat(2) {
+            restarts.start()
+            assertEquals(1, claims())
+            restarts.stop()
+            assertEquals(0, claims())
+        }
+    }
+
+    @Test
     fun hostEventsGiveTheirClaimBackOnStop() {
         val hosts = HostEvents(socket, scope)
         hosts.start()

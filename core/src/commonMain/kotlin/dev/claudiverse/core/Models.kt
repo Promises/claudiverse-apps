@@ -211,7 +211,9 @@ data class Host(
             runtimes = o.array("runtimes").objects().mapNotNull { r -> r.str("name")?.let { HostRuntime(it, r.str("version")) } },
             mcp = o.array("mcp").strings(),
             lastSeenAt = o.str("last_seen_at"),
-            spawn = o.obj("spawn")?.let { SpawnChoices(it.array("options").strings(), it.flag("pool_only"), it.flag("pooled")) },
+            spawn = o.obj("spawn")?.let {
+                SpawnChoices(it.array("options").strings(), it.flag("pool_only"), it.flag("pooled"), it.str("runtime"), it.str("version"))
+            },
         )
     }
 }
@@ -221,7 +223,14 @@ data class Host(
  * ("model", "pooled"); [poolOnly] when it has no Claude login of its own, so
  * its seats always use the server's pool; [pooled], its own default.
  */
-data class SpawnChoices(val options: List<String>, val poolOnly: Boolean, val pooled: Boolean) {
+data class SpawnChoices(
+    val options: List<String>,
+    val poolOnly: Boolean,
+    val pooled: Boolean,
+    /** The runtime a plain spawn runs, and its Claude Code version ("2.1.296"), when the agent says. */
+    val runtime: String? = null,
+    val version: String? = null,
+) {
     val offersModel: Boolean get() = "model" in options
     val offersPool: Boolean get() = "pooled" in options
 }
