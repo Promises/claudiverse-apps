@@ -139,7 +139,7 @@ class RestartsTest {
         assertEquals(listOf("9"), body["exclude_session_ids"]?.jsonArray?.map { it.jsonPrimitive.content })
         assertEquals("true", body["exclude_paused"]?.jsonPrimitive?.content, "paused fleets are left out by default")
         api.restartIdle(null, RestartOptions(excludePaused = false))
-        assertNull(requests.last().body()["exclude_paused"])
+        assertEquals("false", requests.last().body()["exclude_paused"]?.jsonPrimitive?.content, "the server's default is true, so false is said")
         assertNull(requests.last().body()["session_ids"], "no set: the server chooses")
     }
 

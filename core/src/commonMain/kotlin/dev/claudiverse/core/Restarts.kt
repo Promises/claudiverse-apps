@@ -176,7 +176,8 @@ internal fun restartBody(o: RestartOptions, dryRun: Boolean): JsonObject = build
     o.excludeFleets?.let { f -> put("exclude_fleets", buildJsonArray { f.forEach { add(JsonPrimitive(it)) } }) }
     o.sessionIds?.let { ids -> put("session_ids", buildJsonArray { ids.forEach { add(JsonPrimitive(it)) } }) }
     o.excludeSessionIds?.let { ids -> put("exclude_session_ids", buildJsonArray { ids.forEach { add(JsonPrimitive(it)) } }) }
-    if (o.excludePaused) put("exclude_paused", true)
+    // Always sent: the server leaves paused fleets out unless told false.
+    put("exclude_paused", o.excludePaused)
     put("only_outdated", o.onlyOutdated)
     if (o.includeSelf) put("include_self", true)
     o.caller?.let { put("caller", it) }
