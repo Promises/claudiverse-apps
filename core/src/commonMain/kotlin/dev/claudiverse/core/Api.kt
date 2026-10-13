@@ -295,7 +295,7 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
 
     /** What restarting [seatId] would do, without doing it. App or super token. */
     @Throws(Exception::class)
-    suspend fun planSeatRestart(seatId: Long, includeSelf: Boolean = false, caller: String? = null, confirmProtected: Boolean = false): RestartPlan {
+    suspend fun planSeatRestart(seatId: Long, includeSelf: Boolean = false, caller: Long? = null, confirmProtected: Boolean = false): RestartPlan {
         val o = post(listOf("sessions", "$seatId", "restart"), seatRestartBody(dryRun = true, includeSelf, caller, confirmProtected))
         return RestartPlan.from(o.obj("seat") ?: throw ApiException("Server sent no plan"))
     }
@@ -308,7 +308,7 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
      * A protected seat ([RestartPlan.isProtected]) needs [confirmProtected].
      */
     @Throws(Exception::class)
-    suspend fun restartSeat(seatId: Long, includeSelf: Boolean = false, caller: String? = null, confirmProtected: Boolean = false): String =
+    suspend fun restartSeat(seatId: Long, includeSelf: Boolean = false, caller: Long? = null, confirmProtected: Boolean = false): String =
         try {
             post(listOf("sessions", "$seatId", "restart"), seatRestartBody(dryRun = false, includeSelf, caller, confirmProtected)).requireStr("restart_id")
         } catch (e: ApiException) {
@@ -331,7 +331,7 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
     private fun idleRestartPath(host: String?) =
         if (host == null) listOf("hosts", "restart_idle") else listOf("hosts", host, "restart_idle")
 
-    private fun seatRestartBody(dryRun: Boolean, includeSelf: Boolean, caller: String?, confirmProtected: Boolean) = buildJsonObject {
+    private fun seatRestartBody(dryRun: Boolean, includeSelf: Boolean, caller: Long?, confirmProtected: Boolean) = buildJsonObject {
         if (dryRun) put("dry_run", true)
         if (includeSelf) put("include_self", true)
         if (confirmProtected) put("confirm_protected", true)

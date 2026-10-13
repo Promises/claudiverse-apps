@@ -81,7 +81,8 @@ data class RestartOptions(
     val excludeFleets: List<String>? = null,
     val onlyOutdated: Boolean = true,
     val includeSelf: Boolean = false,
-    val caller: String? = null,
+    /** The seat asking (its session id), so the server leaves it out unless includeSelf. */
+    val caller: Long? = null,
     val sessionIds: List<Long>? = null,
     val excludeSessionIds: List<Long>? = null,
     val excludePaused: Boolean = true,

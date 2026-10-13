@@ -150,6 +150,10 @@ class RestartsTest {
         assertNull(requests.last().body()["confirm_protected"])
         api.restartSeat(5, confirmProtected = true)
         assertEquals("true", requests.last().body()["confirm_protected"]?.jsonPrimitive?.content)
+        api.restartSeat(5, caller = 42)
+        val caller = requests.last().body()["caller"]?.jsonPrimitive
+        assertEquals("42", caller?.content)
+        assertEquals(false, caller?.isString, "the caller is a session id, sent as a number")
     }
 
     @Test
