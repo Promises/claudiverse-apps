@@ -33,6 +33,10 @@ final class RestartViewsTests: XCTestCase {
         XCTAssertEqual(RestartSeatSheet.button(plan(1, "restart", new: nil)), "Restart")
         XCTAssertEqual(RestartSeatSheet.button(plan(1, "adopt")), "Adopt into a managed seat")
         XCTAssertEqual(RestartSeatSheet.describe(plan(1, "skip", reason: "it is mid-turn")), "Not now: it is mid-turn.")
+        // A protected seat skipped only for that can still be restarted, on a second confirmation.
+        let guarded = plan(6, "skip", protected: true, reason: "protected")
+        XCTAssertEqual(RestartSeatSheet.button(guarded), "Restart (resume on 2.1.296)")
+        XCTAssertTrue(RestartSeatSheet.describe(guarded).hasPrefix("It is protected"))
     }
 
     func testVersionsReadOldToNew() {

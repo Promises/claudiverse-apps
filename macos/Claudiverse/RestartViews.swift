@@ -343,7 +343,8 @@ struct RestartSeatSheet: View {
                         if plan?.isProtected == true { confirmingProtected = true } else { Task { await restart(confirmProtected: false) } }
                     }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(plan == nil || plan?.skipped == true)
+                    // A protected seat the server skips only for being protected is restarted on a second confirmation.
+                    .disabled(plan.map { !RestartWording.tickable($0) } ?? true)
                 } else {
                     Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
                 }
@@ -359,7 +360,8 @@ struct RestartSeatSheet: View {
 
     /// The button: "Restart (resume on 2.1.296)", or "Adopt into a managed seat".
     static func button(_ p: RestartPlan) -> String {
-        switch p.action {
+        if p.skipped && p.isProtected { return p.targetVersion.map { "Restart (resume on \($0))" } ?? "Restart" }
+        return switch p.action {
         case RestartPlan.companion.ADOPT: "Adopt into a managed seat"
         case RestartPlan.companion.RESTART: p.targetVersion.map { "Restart (resume on \($0))" } ?? "Restart"
         default: "Restart"
@@ -373,6 +375,8 @@ struct RestartSeatSheet: View {
             "It stops, and starts again in its tmux window on \(p.targetVersion.map { "Claude Code \($0)" } ?? "the machine's current Claude Code"), resuming the same conversation."
         case RestartPlan.companion.ADOPT:
             "It runs outside tmux. It stops, and starts again as a managed tmux seat on the same conversation; its old terminal window is left as it is."
+        case _ where p.isProtected:
+            "It is protected: restarting it asks you again. It then stops, and starts again on the same conversation."
         default:
             "Not now: \(p.reason ?? "the server says it cannot be restarted").".replacingOccurrences(of: "..", with: ".")
         }
