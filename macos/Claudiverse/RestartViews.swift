@@ -59,12 +59,8 @@ enum RestartWording {
 
     /// The seats a bulk restart starts with ticked: every one it would restart or adopt, except protected ones.
     static func defaultTicked(_ plan: [RestartPlan]) -> Set<Int64> {
-        Set(plan.filter { !$0.skipped && !$0.isProtected }.map(\.sessionId))
+        Set(plan.filter { !$0.skipped && !$0.needsProtectedConfirm }.map(\.sessionId))
     }
-
-    /// Whether a row can be ticked: anything the server would restart or adopt, and a protected seat it skips only
-    /// for being protected (it restarts one named in session_ids). Other skips (busy, up to date…) cannot be.
-    static func tickable(_ p: RestartPlan) -> Bool { !p.skipped || p.isProtected }
 
     /// "Restart 3 seats", "Restart 1 seat".
     static func confirm(_ n: Int) -> String { n == 1 ? "Restart 1 seat" : "Restart \(n) seats" }
@@ -104,7 +100,7 @@ struct RestartIdleSheet: View {
                 if started == nil {
                     Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                     Button(RestartWording.confirm(ticked.count)) {
-                        if plan.contains(where: { $0.isProtected && ticked.contains($0.sessionId) }) {
+                        if plan.contains(where: { $0.needsProtectedConfirm && ticked.contains($0.sessionId) }) {
                             confirmingProtected = true
                         } else {
                             Task { await start() }
@@ -128,7 +124,7 @@ struct RestartIdleSheet: View {
         }
     }
 
-    private var protectedTicked: [RestartPlan] { plan.filter { $0.isProtected && ticked.contains($0.sessionId) } }
+    private var protectedTicked: [RestartPlan] { plan.filter { $0.needsProtectedConfirm && ticked.contains($0.sessionId) } }
 
     @ViewBuilder
     private var options: some View {
@@ -185,8 +181,9 @@ struct RestartIdleSheet: View {
                 if on { ticked.insert(p.sessionId) } else { ticked.remove(p.sessionId) }
             }))
             .toggleStyle(.checkbox).labelsHidden()
-            .disabled(!RestartWording.tickable(p))
-            if p.isProtected { Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary).help("Protected: left out unless ticked") }
+            // Core's rule: a seat skipped only for being protected can still be chosen; busy, up to date and so on cannot.
+            .disabled(!p.choosable)
+            if p.needsProtectedConfirm { Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary).help("Protected: left out unless ticked") }
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(p.title).fontWeight(.medium)
@@ -201,7 +198,7 @@ struct RestartIdleSheet: View {
             }
             Pill(text: RestartWording.action(p), color: p.skipped ? Theme.muted : p.action == RestartPlan.companion.ADOPT ? Theme.info : Theme.good)
         }
-        .opacity(RestartWording.tickable(p) ? 1 : 0.7)
+        .opacity(p.choosable ? 1 : 0.7)
     }
 
     private func progress(_ s: RestartBatchStarted) -> some View {
@@ -241,7 +238,7 @@ struct RestartIdleSheet: View {
             plan = try await api.planIdleRestart(host: scope.host, options: options_)
             // Keep the operator's choices for seats still in the plan; newcomers start as the default says.
             let fresh = RestartWording.defaultTicked(plan)
-            ticked = ticked.intersection(Set(plan.filter(RestartWording.tickable).map(\.sessionId)))
+            ticked = ticked.intersection(Set(plan.filter(\.choosable).map(\.sessionId)))
                 .union(fresh.subtracting(previous))
             error = nil
         } catch {
@@ -340,11 +337,11 @@ struct RestartSeatSheet: View {
                 if restartId == nil {
                     Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                     Button(plan.map(Self.button) ?? "Restart") {
-                        if plan?.isProtected == true { confirmingProtected = true } else { Task { await restart(confirmProtected: false) } }
+                        if plan?.needsProtectedConfirm == true { confirmingProtected = true } else { Task { await restart(confirmProtected: false) } }
                     }
                     .keyboardShortcut(.defaultAction)
                     // A protected seat the server skips only for being protected is restarted on a second confirmation.
-                    .disabled(plan.map { !RestartWording.tickable($0) } ?? true)
+                    .disabled(!(plan?.choosable ?? false))
                 } else {
                     Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
                 }
@@ -360,7 +357,7 @@ struct RestartSeatSheet: View {
 
     /// The button: "Restart (resume on 2.1.296)", or "Adopt into a managed seat".
     static func button(_ p: RestartPlan) -> String {
-        if p.skipped && p.isProtected { return p.targetVersion.map { "Restart (resume on \($0))" } ?? "Restart" }
+        if p.skipped && p.choosable { return p.targetVersion.map { "Restart (resume on \($0))" } ?? "Restart" }
         return switch p.action {
         case RestartPlan.companion.ADOPT: "Adopt into a managed seat"
         case RestartPlan.companion.RESTART: p.targetVersion.map { "Restart (resume on \($0))" } ?? "Restart"
@@ -375,7 +372,7 @@ struct RestartSeatSheet: View {
             "It stops, and starts again in its tmux window on \(p.targetVersion.map { "Claude Code \($0)" } ?? "the machine's current Claude Code"), resuming the same conversation."
         case RestartPlan.companion.ADOPT:
             "It runs outside tmux. It stops, and starts again as a managed tmux seat on the same conversation; its old terminal window is left as it is."
-        case _ where p.isProtected:
+        case _ where p.choosable:
             "It is protected: restarting it asks you again. It then stops, and starts again on the same conversation."
         default:
             "Not now: \(p.reason ?? "the server says it cannot be restarted").".replacingOccurrences(of: "..", with: ".")
