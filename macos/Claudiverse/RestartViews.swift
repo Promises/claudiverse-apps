@@ -271,7 +271,7 @@ struct RestartProgressRow: View {
             Image(systemName: Self.icon(row.status)).foregroundStyle(Self.color(row.status)).frame(width: 14)
             VStack(alignment: .leading, spacing: 1) {
                 Text(row.plan.title).fontWeight(.medium)
-                if let note = e?.note ?? (row.status == "skipped" ? (e?.reason ?? row.plan.reason) : nil) {
+                if let note = Self.note(row) {
                     Text(note).font(.caption).foregroundStyle(e?.killed == true || row.status == "failed" ? Theme.bad : .secondary)
                 }
                 if e?.killed == true { Text("The old process had to be killed.").font(.caption).foregroundStyle(Theme.bad) }
@@ -281,6 +281,22 @@ struct RestartProgressRow: View {
                 Text(v).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
             Text(RestartWording.status(row)).font(.callout).foregroundStyle(Self.color(row.status))
+        }
+    }
+
+    /**
+     * What a row says under the seat's name: the event's note, else its reason for a failure or a skip (else the
+     * plan's skip reason). A seat that did not register again after its restart may well be running.
+     */
+    static func note(_ row: RestartRow) -> String? {
+        let e = row.event
+        if let note = e?.note { return note }
+        switch row.status {
+        case "failed":
+            let reason = e?.reason ?? "the restart failed"
+            return e?.reasonCode == "not_registered" ? reason + " It may be running anyway: look at its terminal." : reason
+        case "skipped": return e?.reason ?? row.plan.reason
+        default: return nil
         }
     }
 

@@ -11,8 +11,9 @@ final class RestartViewsTests: XCTestCase {
                     clientVersion: old, targetVersion: new, argvNames: [], envNames: [], isProtected: protected)
     }
 
-    private func event(_ id: Int64, _ outcome: String, batch: String = "b1", killed: Bool = false, note: String? = nil) -> SeatRestartEvent {
-        SeatRestartEvent(sessionId: id, title: nil, host: nil, outcome: outcome, reason: nil, reasonCode: nil, oldVersion: "2.1.292",
+    private func event(_ id: Int64, _ outcome: String, batch: String = "b1", killed: Bool = false, note: String? = nil,
+                       reason: String? = nil, code: String? = nil) -> SeatRestartEvent {
+        SeatRestartEvent(sessionId: id, title: nil, host: nil, outcome: outcome, reason: reason, reasonCode: code, oldVersion: "2.1.292",
                          newVersion: outcome == "restarted" ? "2.1.296" : nil, newSessionId: nil, killed: killed, note: note,
                          restartId: "r\(id)", batchId: batch)
     }
@@ -47,6 +48,17 @@ final class RestartViewsTests: XCTestCase {
         XCTAssertEqual(RestartWording.versions("2.1.296", "2.1.296"), "2.1.296")
         XCTAssertEqual(RestartWording.versions(nil, "2.1.296"), "→ 2.1.296")
         XCTAssertNil(RestartWording.versions(nil, nil))
+    }
+
+    /// A failure says why, from its reason when it has no note; one that did not register again may be running.
+    func testAFailureSaysWhy() {
+        let p = plan(1, "restart")
+        let unregistered = RestartRow(plan: p, event: event(1, "failed", reason: "It did not register within 90 s.", code: "not_registered"))
+        XCTAssertEqual(RestartProgressRow.note(unregistered), "It did not register within 90 s. It may be running anyway: look at its terminal.")
+        XCTAssertEqual(RestartProgressRow.note(RestartRow(plan: p, event: event(1, "failed", reason: "The machine refused."))), "The machine refused.")
+        XCTAssertEqual(RestartProgressRow.note(RestartRow(plan: p, event: event(1, "failed", note: "killed after 30 s"))), "killed after 30 s")
+        XCTAssertNil(RestartProgressRow.note(RestartRow(plan: p, event: event(1, "restarted"))))
+        XCTAssertEqual(RestartProgressRow.note(RestartRow(plan: plan(2, "skip", reason: "busy"), event: nil)), "busy")
     }
 
     /// Progress: plan order, the latest outcome per seat in this batch, failures and kills in red.
