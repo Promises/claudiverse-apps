@@ -38,6 +38,8 @@ data class RestartPlan(
     /** From a dry run the machine looked at: the argument and environment names a restart carries (never values). */
     val argvNames: List<String> = emptyList(),
     val envNames: List<String> = emptyList(),
+    /** Marked protected on the server: a batch leaves it out unless named, and one restart needs confirmProtected. */
+    val isProtected: Boolean = false,
 ) {
     val skipped: Boolean get() = action == SKIP
 
@@ -62,18 +64,27 @@ data class RestartPlan(
                 targetVersion = o.str("target_version"),
                 argvNames = launch?.array("argv").strings(),
                 envNames = launch?.array("env").strings(),
+                isProtected = o.flag("protected"),
             )
         }
     }
 }
 
-/** Which idle seats a batch restart takes. Defaults as both apps offer them: only outdated seats, never the caller's own. */
+/**
+ * Which idle seats a batch restart takes. Defaults as both apps offer them:
+ * only outdated seats, paused fleets left out, never the caller's own.
+ * [sessionIds] is exactly the set to restart (a protected seat only when
+ * named here); [excludeSessionIds] leaves seats out.
+ */
 data class RestartOptions(
     val fleets: List<String>? = null,
     val excludeFleets: List<String>? = null,
     val onlyOutdated: Boolean = true,
     val includeSelf: Boolean = false,
     val caller: String? = null,
+    val sessionIds: List<Long>? = null,
+    val excludeSessionIds: List<Long>? = null,
+    val excludePaused: Boolean = true,
 )
 
 /** A single seat's restart the server refused (409): [message] is its sentence, for people; [reasonCode] as in [RestartPlan]. */
@@ -163,6 +174,9 @@ internal fun restartBody(o: RestartOptions, dryRun: Boolean): JsonObject = build
     if (dryRun) put("dry_run", true)
     o.fleets?.let { f -> put("fleets", buildJsonArray { f.forEach { add(JsonPrimitive(it)) } }) }
     o.excludeFleets?.let { f -> put("exclude_fleets", buildJsonArray { f.forEach { add(JsonPrimitive(it)) } }) }
+    o.sessionIds?.let { ids -> put("session_ids", buildJsonArray { ids.forEach { add(JsonPrimitive(it)) } }) }
+    o.excludeSessionIds?.let { ids -> put("exclude_session_ids", buildJsonArray { ids.forEach { add(JsonPrimitive(it)) } }) }
+    if (o.excludePaused) put("exclude_paused", true)
     put("only_outdated", o.onlyOutdated)
     if (o.includeSelf) put("include_self", true)
     o.caller?.let { put("caller", it) }

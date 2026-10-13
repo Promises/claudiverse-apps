@@ -57,6 +57,8 @@ data class Seat(
     val notifyUntil: String? = null,
     /** The profile it was started from; null for a seat started by hand. */
     val profileId: Long? = null,
+    /** Marked protected on the server: restarting it takes a second confirmation. */
+    val isProtected: Boolean = false,
     /** Background tasks running or pending (shells, monitors, workflows, subagents), from the seat list. */
     val backgroundRunning: Int = 0,
 ) {
@@ -95,6 +97,7 @@ data class Seat(
             fleet = o.str("fleet"),
             origin = o.str("origin"),
             profileId = o.long("profile_id"),
+            isProtected = o.flag("protected"),
             backgroundRunning = o.long("background_running")?.toInt() ?: 0,
             canNotify = o.flag("can_notify"),
             workingDirectory = o.str("working_directory"),
@@ -524,9 +527,17 @@ data class FleetMember(val id: Long, val name: String, val role: String, val mac
     }
 }
 
-data class Fleet(val fleet: String, val runners: List<FleetRunner>, val seats: List<FleetSeat>, val members: List<FleetMember> = emptyList()) {
+data class Fleet(
+    val fleet: String,
+    val runners: List<FleetRunner>,
+    val seats: List<FleetSeat>,
+    val members: List<FleetMember> = emptyList(),
+    /** Paused by the operator: a batch restart leaves it out by default. */
+    val paused: Boolean = false,
+) {
     companion object {
         fun from(o: JsonObject) = Fleet(
+            paused = o.flag("paused"),
             fleet = o.requireStr("fleet"),
             runners = o.array("runners").objects().mapNotNull { runCatching { FleetRunner.from(it) }.getOrNull() },
             seats = o.array("seats").objects().mapNotNull { runCatching { FleetSeat.from(it) }.getOrNull() },

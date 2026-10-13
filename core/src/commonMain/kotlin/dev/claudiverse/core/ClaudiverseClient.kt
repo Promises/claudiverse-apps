@@ -23,6 +23,8 @@ class ClaudiverseClient(access: () -> ServerAccess, outboxStore: OutboxStore) {
     val fleets = Fleets(api, socket, scope)
     val profiles = Profiles(api, socket, scope)
     val poolEvents = PoolEvents(socket, scope)
+    /** Seat restarts as they happen; start it while a restart is followed. */
+    val restarts = Restarts(socket, scope)
 
     /** The New seat screen's state and actions; close it when the screen goes. */
     fun openNewSeat(): NewSeatSession = NewSeatSession(this, scope)
@@ -36,6 +38,7 @@ class ClaudiverseClient(access: () -> ServerAccess, outboxStore: OutboxStore) {
         fleets.stop()
         profiles.stop()
         poolEvents.stop()
+        restarts.stop()
         scope.cancel()
     }
 }

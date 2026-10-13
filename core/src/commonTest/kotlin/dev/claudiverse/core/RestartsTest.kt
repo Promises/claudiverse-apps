@@ -129,4 +129,33 @@ class RestartsTest {
         assertEquals("http://server:4010/api/hosts/restart_idle", requests.last().url.toString())
         assertEquals("true", requests.last().body()["dry_run"]?.jsonPrimitive?.content)
     }
+
+    @Test
+    fun anExactSetPausedFleetsAndProtectedSeatsAreSentAsAsked() = runTest {
+        val api = api { json("""{"batch_id":"b1","seats":[]}""") }
+        api.restartIdle(null, RestartOptions(sessionIds = listOf(5, 7), excludeSessionIds = listOf(9)))
+        val body = requests.last().body()
+        assertEquals(listOf("5", "7"), body["session_ids"]?.jsonArray?.map { it.jsonPrimitive.content })
+        assertEquals(listOf("9"), body["exclude_session_ids"]?.jsonArray?.map { it.jsonPrimitive.content })
+        assertEquals("true", body["exclude_paused"]?.jsonPrimitive?.content, "paused fleets are left out by default")
+        api.restartIdle(null, RestartOptions(excludePaused = false))
+        assertNull(requests.last().body()["exclude_paused"])
+        assertNull(requests.last().body()["session_ids"], "no set: the server chooses")
+    }
+
+    @Test
+    fun aProtectedSeatIsRestartedOnlyWhenConfirmed() = runTest {
+        val api = api { json("""{"restart_id":"r1"}""") }
+        api.restartSeat(5)
+        assertNull(requests.last().body()["confirm_protected"])
+        api.restartSeat(5, confirmProtected = true)
+        assertEquals("true", requests.last().body()["confirm_protected"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun protectedAndPausedAreRead() {
+        assertTrue(RestartPlan.from(obj("""{"session_id":5,"title":"x","action":"restart","reason":null,"protected":true}""")).isProtected)
+        assertTrue(Fleet.from(obj("""{"fleet":"lorem-fleet","paused":true,"runners":[],"seats":[]}""")).paused)
+        assertTrue(!Fleet.from(obj("""{"fleet":"ipsum-fleet","runners":[],"seats":[]}""")).paused)
+    }
 }

@@ -295,8 +295,8 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
 
     /** What restarting [seatId] would do, without doing it. App or super token. */
     @Throws(Exception::class)
-    suspend fun planSeatRestart(seatId: Long, includeSelf: Boolean = false, caller: String? = null): RestartPlan {
-        val o = post(listOf("sessions", "$seatId", "restart"), seatRestartBody(dryRun = true, includeSelf, caller))
+    suspend fun planSeatRestart(seatId: Long, includeSelf: Boolean = false, caller: String? = null, confirmProtected: Boolean = false): RestartPlan {
+        val o = post(listOf("sessions", "$seatId", "restart"), seatRestartBody(dryRun = true, includeSelf, caller, confirmProtected))
         return RestartPlan.from(o.obj("seat") ?: throw ApiException("Server sent no plan"))
     }
 
@@ -305,11 +305,12 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
      * a tmux seat when it runs outside tmux); returns the restart's id, which
      * its "seat_restart" events carry. A seat that is not idle enough is
      * refused, never queued: [RestartRefused] with the server's sentence.
+     * A protected seat ([RestartPlan.isProtected]) needs [confirmProtected].
      */
     @Throws(Exception::class)
-    suspend fun restartSeat(seatId: Long, includeSelf: Boolean = false, caller: String? = null): String =
+    suspend fun restartSeat(seatId: Long, includeSelf: Boolean = false, caller: String? = null, confirmProtected: Boolean = false): String =
         try {
-            post(listOf("sessions", "$seatId", "restart"), seatRestartBody(dryRun = false, includeSelf, caller)).requireStr("restart_id")
+            post(listOf("sessions", "$seatId", "restart"), seatRestartBody(dryRun = false, includeSelf, caller, confirmProtected)).requireStr("restart_id")
         } catch (e: ApiException) {
             if (e.httpStatus == 409) throw RestartRefused(e.body?.str("error") ?: e.message.orEmpty(), e.body?.str("reason_code"))
             throw e
@@ -330,9 +331,10 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
     private fun idleRestartPath(host: String?) =
         if (host == null) listOf("hosts", "restart_idle") else listOf("hosts", host, "restart_idle")
 
-    private fun seatRestartBody(dryRun: Boolean, includeSelf: Boolean, caller: String?) = buildJsonObject {
+    private fun seatRestartBody(dryRun: Boolean, includeSelf: Boolean, caller: String?, confirmProtected: Boolean) = buildJsonObject {
         if (dryRun) put("dry_run", true)
         if (includeSelf) put("include_self", true)
+        if (confirmProtected) put("confirm_protected", true)
         caller?.let { put("caller", it) }
     }
 
