@@ -62,7 +62,12 @@ class ModelCatalogs(private val api: Api, private val scope: CoroutineScope) {
     fun refresh() {
         scope.launch {
             try {
-                api.modelCatalog()?.let { state.value = it }
+                val served = api.modelCatalog()
+                if (served != null) state.value = served
+                CoreLog.info(
+                    if (served != null) "models: ${served.models.size + served.olderModels.size} from the server"
+                    else "models: the server has no list; the ${if (state.value.fromServer) "server's" else "built-in"} one stays",
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
