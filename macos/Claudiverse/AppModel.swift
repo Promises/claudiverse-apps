@@ -69,6 +69,11 @@ final class AppModel {
     private(set) var queued: [QueuedMessage] = []
     /// The fleets with their live runner spaces, from cv-runner's heartbeat.
     private(set) var fleets: [Fleet] = []
+    /// Seat restarts since sign-in, oldest first, and each batch's latest state (core's Restarts).
+    private(set) var restartEvents: [SeatRestartEvent] = []
+    private(set) var restartBatches: [String: RestartBatchEvent] = [:]
+    /// Restart idle seats is open, for one machine or all.
+    var restartScope: RestartScope?
     /// Seat profiles with their derived status, live from "profile" events.
     private(set) var profiles: [Profile] = []
     /// The profile open in the Profiles section; nil with [creatingProfile] for a new one.
@@ -223,6 +228,7 @@ final class AppModel {
         client.fleets.stop()
         client.profiles.stop()
         client.poolEvents.stop()
+        client.restarts.stop()
         recentSeats.forEach { $0.close() }
         recentSeats = []
         await Task.detached { TokenStore.delete() }.value
@@ -262,6 +268,7 @@ final class AppModel {
         client.fleets.start()
         client.profiles.start()
         client.poolEvents.start()
+        client.restarts.start()
         drafts.removeStalePastes()
         notifier.requestPermission()
         running = [
@@ -291,6 +298,12 @@ final class AppModel {
             },
             Task { [weak self, client] in
                 for await all in client.fleets.all { self?.fleets = all }
+            },
+            Task { [weak self, client] in
+                for await events in client.restarts.events { self?.restartEvents = events }
+            },
+            Task { [weak self, client] in
+                for await batches in client.restarts.batches { self?.restartBatches = batches }
             },
             Task { [weak self, client] in
                 for await all in client.profiles.all { self?.profiles = all }

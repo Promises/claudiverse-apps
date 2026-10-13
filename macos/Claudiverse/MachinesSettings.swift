@@ -65,6 +65,7 @@ struct MachineSection: View {
     @State private var error: String?
     @State private var removing: String?
     @State private var sshTarget = ""
+    @State private var restarting: RestartScope?
 
     var body: some View {
         Section {
@@ -99,11 +100,18 @@ struct MachineSection: View {
                 Circle().fill(host.online ? Theme.good : Theme.muted).frame(width: 8, height: 8)
                 Text(host.name).font(.headline)
                 Spacer()
-                Text([host.online ? "online" : "offline", "\(host.seats) seats", host.version.map { "agent \($0)" }].compactMap { $0 }.joined(separator: " · "))
+                Text([host.online ? "online" : "offline", "\(host.seats) seats", host.spawn?.version.map { "Claude Code \($0)" },
+                      host.version.map { "agent \($0)" }].compactMap { $0 }.joined(separator: " · "))
                     .font(.caption).foregroundStyle(.secondary)
+                if host.online && host.seats > 0 {
+                    Button("Restart Idle Seats…") { restarting = RestartScope(host: host.name) }
+                        .controlSize(.small)
+                        .help("Restart this machine's idle seats onto its current Claude Code")
+                }
             }
         }
         .onAppear { sshTarget = TerminalOpener.sshTarget(for: host.name) ?? "" }
+        .sheet(item: $restarting) { RestartIdleSheet(scope: $0).environment(model) }
         .confirmationDialog("Remove \(removing ?? "") from \(host.name)?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } })) {
             Button("Remove", role: .destructive) { if let r = removing { remove(r) } }
         } message: {

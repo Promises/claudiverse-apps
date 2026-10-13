@@ -39,8 +39,15 @@ struct MainView: View {
                     .keyboardShortcut("n", modifiers: .command)
                     .help("Start a seat on a machine (⌘N)")
             }
+            ToolbarItem(placement: .navigation) {
+                Button { model.restartScope = RestartScope(host: nil) } label: {
+                    Label("Restart idle seats", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .help("Restart idle seats on every machine onto its current Claude Code")
+            }
         }
         .sheet(isPresented: $newSeat) { NewSeatView().environment(model) }
+        .sheet(item: $model.restartScope) { RestartIdleSheet(scope: $0).environment(model) }
         #if CLAUDIVERSE_HARNESS
         .sheet(item: $model.harnessAdopt) { AdoptSheet(seat: $0).environment(model) }
         .onChange(of: model.harnessChannel) { _, slug in if let slug { channel = slug } }

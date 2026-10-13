@@ -72,6 +72,7 @@ struct SeatDetailView: View {
     @State private var agentId: String?
     /// The shown thread as plain text, while Show as Text is open.
     @State private var asText: ConversationText?
+    @State private var restarting = false
 
     var body: some View {
         Group {
@@ -141,6 +142,7 @@ struct SeatDetailView: View {
             SessionInfoView(state: s, session: model.session).inspectorColumnWidth(min: 260, ideal: 300, max: 420)
         }
         .sheet(item: $asText) { ConversationTextSheet(conversation: $0) }
+        .sheet(isPresented: $restarting) { if let seat = s.seat { RestartSeatSheet(seat: seat).environment(app) } }
         .alert("Open terminal", isPresented: Binding(get: { terminalError != nil }, set: { if !$0 { terminalError = nil } })) {
             Button("OK") { terminalError = nil }
         } message: {
@@ -182,6 +184,10 @@ struct SeatDetailView: View {
                 asText = ConversationText(title: title, text: conversationText(items: items))
             } label: { Label("Show as Text", systemImage: "doc.plaintext") }
                 .help("The conversation as one text, to select and copy across messages")
+            if let seat = s.seat, seat.status == "running" {
+                Button { restarting = true } label: { Label("Restart", systemImage: "arrow.triangle.2.circlepath") }
+                    .help("Restart this seat onto its machine's current Claude Code, on the same conversation")
+            }
             Button { showInfo.toggle() } label: { Label("Info", systemImage: "info.circle") }
         }
     }
