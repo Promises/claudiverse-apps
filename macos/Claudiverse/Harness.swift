@@ -291,6 +291,16 @@ enum Harness {
             NSApp.activate()
             window.makeKeyAndOrderFront(nil)
             return reply(["ok": true, "window": window.windowNumber])
+        case "restartsheet":
+            // Restart idle seats, for one machine (host) or every machine; close: true closes it. The sheet only plans
+            // (a dry run) until someone confirms in it.
+            if json["close"] as? Bool == true {
+                model.restartScope = nil
+                return reply(["ok": true])
+            }
+            model.section = .seats
+            model.restartScope = RestartScope(host: json["host"] as? String)
+            return reply(["ok": true])
         case "notify":
             let content = UNMutableNotificationContent()
             content.title = json["title"] as? String ?? "Claudiverse harness"
