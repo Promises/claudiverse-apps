@@ -325,7 +325,8 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
      * idle enough is refused in the server's words.
      */
     fun restart(confirmProtected: Boolean = false) {
-        val plan = state.value.restartPlan?.takeUnless { it.skipped } ?: return
+        val plan = state.value.restartPlan?.takeIf { it.choosable } ?: return
+        if (plan.needsProtectedConfirm && !confirmProtected) return
         val host = plan.host ?: state.value.seat?.host ?: "its machine"
         val doing = if (plan.action == RestartPlan.ADOPT) "Adopting into a tmux seat" else "Restarting"
         state.update { it.copy(acting = true, notice = "$doing on $host…") }

@@ -43,6 +43,12 @@ data class RestartPlan(
 ) {
     val skipped: Boolean get() = action == SKIP
 
+    /** A protected seat: restarting it takes a second confirmation (confirm_protected, or naming it in session_ids). */
+    val needsProtectedConfirm: Boolean get() = isProtected || reasonCode == "protected"
+
+    /** Can be chosen: anything not skipped, and a seat skipped only for being protected, with that second confirmation. */
+    val choosable: Boolean get() = !skipped || reasonCode == "protected"
+
     companion object {
         const val RESTART = "restart"
         const val ADOPT = "adopt"

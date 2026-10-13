@@ -39,7 +39,7 @@ data class RestartIdleState(
     val starting: Boolean = false,
 ) {
     val selectedPlans: List<RestartPlan> get() = plan.filter { it.sessionId in selected }
-    val protectedSelected: Int get() = selectedPlans.count { it.isProtected }
+    val protectedSelected: Int get() = selectedPlans.count { it.needsProtectedConfirm }
 }
 
 /**
@@ -83,7 +83,7 @@ class RestartIdleViewModel(private val app: AppContainer) : ViewModel() {
     }
 
     fun toggleSeat(id: Long) = state.update { s ->
-        if (s.plan.firstOrNull { it.sessionId == id }?.skipped != false) s
+        if (s.plan.firstOrNull { it.sessionId == id }?.choosable != true) s
         else s.copy(selected = if (id in s.selected) s.selected - id else s.selected + id)
     }
 

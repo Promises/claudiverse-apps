@@ -322,7 +322,7 @@ private fun SeatHeader(
     var confirmStop by remember { mutableStateOf(false) }
     var confirmRestart by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
-    if (confirmRestart && restartPlan != null && !restartPlan.skipped) RestartSeatDialog(
+    if (confirmRestart && restartPlan != null && restartPlan.choosable) RestartSeatDialog(
         restartPlan,
         onConfirm = { protectedOk -> confirmRestart = false; onRestart(protectedOk) },
         onDismiss = { confirmRestart = false },
@@ -385,17 +385,18 @@ private fun SeatHeader(
                                     plan == null || restartPlanning -> "Restart seat…"
                                     plan.action == RestartPlan.ADOPT -> "Adopt into a tmux seat…"
                                     plan.action == RestartPlan.RESTART -> "Restart seat" + (plan.targetVersion?.let { " on $it" } ?: "") + "…"
+                                    plan.choosable -> "Restart protected seat…"
                                     else -> "Restart seat"
                                 },
                             )
                             // Why not now, in the server's words: busy, a question open, already current…
-                            if (plan != null && plan.skipped && !restartPlanning) plan.reason?.let {
+                            if (plan != null && plan.skipped && !plan.choosable && !restartPlanning) plan.reason?.let {
                                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     },
                     leadingIcon = { Icon(Icons.Filled.RestartAlt, contentDescription = null) },
-                    enabled = !lifecycle.acting && plan != null && !restartPlanning && !plan.skipped,
+                    enabled = !lifecycle.acting && plan != null && !restartPlanning && plan.choosable,
                     onClick = { menu = false; confirmRestart = true },
                 )
                 DropdownMenuItem(
@@ -415,6 +416,7 @@ private fun RestartSeatDialog(plan: RestartPlan, onConfirm: (confirmProtected: B
     val adopt = plan.action == RestartPlan.ADOPT
     // A protected seat takes a second, deliberate yes.
     var protectedOk by remember(plan.sessionId) { mutableStateOf(false) }
+    val protectedSeat = plan.needsProtectedConfirm
     val versions = listOfNotNull(plan.clientVersion?.let { "from $it" }, plan.targetVersion?.let { "to $it" }).joinToString(" ")
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -430,14 +432,14 @@ private fun RestartSeatDialog(plan: RestartPlan, onConfirm: (confirmProtected: B
                 val carried = plan.argvNames + plan.envNames
                 if (carried.isNotEmpty()) Text("Carries over: ${carried.joinToString(", ")}", style = MaterialTheme.typography.bodySmall,
                     fontFamily = FontFamily.Monospace)
-                if (plan.isProtected) Row(verticalAlignment = Alignment.CenterVertically) {
+                if (protectedSeat) Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(protectedOk, { protectedOk = it })
                     Text("${plan.title} is protected. Restart it anyway.", style = MaterialTheme.typography.bodyMedium, color = StatusColors.bad)
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(plan.isProtected && protectedOk) }, enabled = !plan.isProtected || protectedOk) {
+            TextButton(onClick = { onConfirm(protectedSeat && protectedOk) }, enabled = !protectedSeat || protectedOk) {
                 Text(if (adopt) "Adopt" else "Restart")
             }
         },

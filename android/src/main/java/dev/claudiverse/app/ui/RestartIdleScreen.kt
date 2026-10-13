@@ -125,13 +125,13 @@ private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun PlanRow(p: RestartPlan, selected: Boolean, onToggle: () -> Unit) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    Row(Modifier.fillMaxWidth().clickable(enabled = !p.skipped, onClick = onToggle), verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(selected, { onToggle() }, enabled = !p.skipped)
+    Row(Modifier.fillMaxWidth().clickable(enabled = p.choosable, onClick = onToggle), verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(selected, { onToggle() }, enabled = p.choosable)
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (p.isProtected) Icon(Icons.Filled.Lock, contentDescription = "Protected", modifier = Modifier.size(16.dp), tint = StatusColors.bad)
+                if (p.needsProtectedConfirm) Icon(Icons.Filled.Lock, contentDescription = "Protected", modifier = Modifier.size(16.dp), tint = StatusColors.bad)
                 Text(p.title, style = MaterialTheme.typography.titleSmall,
-                    color = if (p.skipped) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface)
+                    color = if (p.choosable) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline)
                 Pill(actionLabel(p.action), if (p.skipped) StatusColors.muted else if (p.action == RestartPlan.ADOPT) StatusColors.info else StatusColors.good)
             }
             Text(

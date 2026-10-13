@@ -157,6 +157,15 @@ class RestartsTest {
     }
 
     @Test
+    fun aSeatSkippedOnlyForBeingProtectedCanStillBeChosen() {
+        val prot = RestartPlan.from(obj("""{"session_id":5,"title":"x","action":"skip","reason":"It is protected.","reason_code":"protected","protected":true}"""))
+        assertTrue(prot.choosable && prot.needsProtectedConfirm)
+        val busy = RestartPlan.from(obj("""{"session_id":6,"title":"y","action":"skip","reason":"It is working.","reason_code":"busy"}"""))
+        assertTrue(!busy.choosable && !busy.needsProtectedConfirm)
+        assertTrue(RestartPlan.from(obj("""{"session_id":7,"title":"z","action":"restart","reason":null}""")).choosable)
+    }
+
+    @Test
     fun protectedAndPausedAreRead() {
         assertTrue(RestartPlan.from(obj("""{"session_id":5,"title":"x","action":"restart","reason":null,"protected":true}""")).isProtected)
         assertTrue(Fleet.from(obj("""{"fleet":"lorem-fleet","paused":true,"runners":[],"seats":[]}""")).paused)
