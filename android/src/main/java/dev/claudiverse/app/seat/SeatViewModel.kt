@@ -19,6 +19,13 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import android.util.Log
 import dev.claudiverse.core.ApiException
+import dev.claudiverse.core.RestartPlan
+import dev.claudiverse.core.RestartRefused
+import dev.claudiverse.core.SeatRestartEvent
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.withTimeoutOrNull
 import dev.claudiverse.core.answeredByOpening
 import dev.claudiverse.core.nowMs
 import dev.claudiverse.core.BackgroundTask
@@ -66,6 +73,10 @@ data class SeatUiState(
      * is the best known one until the seat reports its own.
      */
     val appliedMode: String? = null,
+    /** What restarting this seat would do, as the server last planned it; null until asked ([SeatViewModel.planRestart]). */
+    val restartPlan: RestartPlan? = null,
+    /** True while the plan is being read. */
+    val restartPlanning: Boolean = false,
     /** The seat's forks and subagents, in the order they started; main is not one of them. */
     val agents: List<SeatAgent> = emptyList(),
     /** Each agent's own thread, by agent id. */
@@ -295,6 +306,58 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
         }
     }
 
+    /** Ask the server what restarting this seat would do: restart, adopt into tmux, or why not now. */
+    fun planRestart() {
+        if (state.value.restartPlanning) return
+        state.update { it.copy(restartPlanning = true) }
+        viewModelScope.launch {
+            val plan = runCatching { app.api.planSeatRestart(seatId) }.getOrElse { e ->
+                RestartPlan(seatId, state.value.seat?.label.orEmpty(), state.value.seat?.host, null, RestartPlan.SKIP,
+                    "The server could not plan it: ${e.message}", null, null, null)
+            }
+            state.update { it.copy(restartPlan = plan, restartPlanning = false) }
+        }
+    }
+
+    /**
+     * Restart the seat on its machine's current Claude Code (or adopt it into
+     * a tmux seat), following its events until it is done. A seat that is not
+     * idle enough is refused in the server's words.
+     */
+    fun restart(confirmProtected: Boolean = false) {
+        val plan = state.value.restartPlan?.takeUnless { it.skipped } ?: return
+        val host = plan.host ?: state.value.seat?.host ?: "its machine"
+        val doing = if (plan.action == RestartPlan.ADOPT) "Adopting into a tmux seat" else "Restarting"
+        state.update { it.copy(acting = true, notice = "$doing on $host…") }
+        app.watchRestarts()
+        viewModelScope.launch {
+            try {
+                val id = app.api.restartSeat(seatId, confirmProtected = confirmProtected)
+                // One final event follows "started"; a machine that never sends it leaves a line saying so, not a stuck seat.
+                val done = withTimeoutOrNull(RESTART_WAIT_MS) {
+                    app.restarts.events.mapNotNull { all -> all.lastOrNull { it.restartId == id && it.finished } }.first()
+                }
+                state.update { it.copy(notice = done?.let(::restartOutcome) ?: "Restart sent; $host has not said how it went yet", restartPlan = null) }
+                refreshSeat()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: RestartRefused) {
+                state.update { it.copy(notice = "Not restarted: ${e.message}", restartPlan = null) }
+            } catch (e: Exception) {
+                val why = when ((e as? ApiException)?.httpStatus) {
+                    403 -> "this app may not restart seats"
+                    404 -> "the server does not know this seat"
+                    504 -> "$host did not answer (offline?)"
+                    else -> e.message
+                }
+                state.update { it.copy(notice = "Not restarted: $why", restartPlan = null) }
+            } finally {
+                state.update { it.copy(acting = false) }
+                app.unwatchRestarts()
+            }
+        }
+    }
+
     /** The screen is visible again: a socket may have died while it was not. */
     fun onResume() = app.socket.checkAlive()
 
@@ -416,4 +479,15 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
     override fun onCleared() {
         channel.leave()
     }
+}
+
+private const val RESTART_WAIT_MS = 5 * 60_000L
+
+/** What a finished restart did, in a line: "Restarted on 2.1.296", "Adopted into a tmux seat", or why not. */
+internal fun restartOutcome(e: SeatRestartEvent): String = when (e.outcome) {
+    "restarted" -> "Restarted" + (e.newVersion?.let { " on $it" } ?: "") + (if (e.killed) " (its old process had to be killed)" else "")
+    "adopted" -> "Adopted into a tmux seat" + (e.newVersion?.let { " on $it" } ?: "") + (e.note?.let { ". $it" } ?: "")
+    "skipped" -> "Not restarted: " + (e.reason ?: "the machine skipped it")
+    "failed" -> "Restart failed: " + (e.reason ?: "no reason given")
+    else -> "Restart ${e.outcome}"
 }

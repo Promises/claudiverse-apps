@@ -41,11 +41,13 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
@@ -94,6 +96,7 @@ import dev.claudiverse.app.seat.SeatUiState
 import dev.claudiverse.app.seat.SeatViewModel
 import dev.claudiverse.core.Timeline
 import dev.claudiverse.core.BackgroundTask
+import dev.claudiverse.core.RestartPlan
 import dev.claudiverse.core.SeatAgent
 import dev.claudiverse.core.TimelineRow
 import dev.claudiverse.core.TranscriptImage
@@ -179,7 +182,8 @@ fun SeatScreen(vm: SeatViewModel, showInfo: Boolean, onShowInfo: (Boolean) -> Un
             ui.socketConnected, ui.joined, ui.seat?.model, onInterrupt = vm::interrupt, onSettings = { showSettings = true },
             onInfo = { onShowInfo(true) },
             lifecycle = ui.seat?.let { SeatLifecycle(it.label, it.host, it.canStop, it.canResume, ui.acting) },
-            onStop = vm::stop, onResume = vm::resume)
+            onStop = vm::stop, onResume = vm::resume,
+            restartPlan = ui.restartPlan, restartPlanning = ui.restartPlanning, onPlanRestart = vm::planRestart, onRestart = vm::restart)
         if (showInfo) SessionInfoSheet(
             seat = ui.seat, live = ui.live, seatId = vm.seatId, socketConnected = ui.socketConnected,
             joined = ui.joined, effort = ui.effort, loadError = ui.loadError, onDismiss = { onShowInfo(false) },
@@ -309,10 +313,20 @@ private fun SeatHeader(
     lifecycle: SeatLifecycle?,
     onStop: () -> Unit,
     onResume: () -> Unit,
+    restartPlan: RestartPlan?,
+    restartPlanning: Boolean,
+    onPlanRestart: () -> Unit,
+    onRestart: (confirmProtected: Boolean) -> Unit,
 ) {
     var confirm by remember { mutableStateOf(false) }
     var confirmStop by remember { mutableStateOf(false) }
+    var confirmRestart by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
+    if (confirmRestart && restartPlan != null && !restartPlan.skipped) RestartSeatDialog(
+        restartPlan,
+        onConfirm = { protectedOk -> confirmRestart = false; onRestart(protectedOk) },
+        onDismiss = { confirmRestart = false },
+    )
     if (confirmStop && lifecycle != null) AlertDialog(
         onDismissRequest = { confirmStop = false },
         title = { Text("Stop ${lifecycle.label}?") },
@@ -359,8 +373,31 @@ private fun SeatHeader(
                 }
         }
         if (lifecycle?.canStop == true) Box {
-            IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
+            // Opening the menu asks the server what a restart would do, so the entry can say it.
+            IconButton(onClick = { menu = true; onPlanRestart() }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                val plan = restartPlan
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(
+                                when {
+                                    plan == null || restartPlanning -> "Restart seat…"
+                                    plan.action == RestartPlan.ADOPT -> "Adopt into a tmux seat…"
+                                    plan.action == RestartPlan.RESTART -> "Restart seat" + (plan.targetVersion?.let { " on $it" } ?: "") + "…"
+                                    else -> "Restart seat"
+                                },
+                            )
+                            // Why not now, in the server's words: busy, a question open, already current…
+                            if (plan != null && plan.skipped && !restartPlanning) plan.reason?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    },
+                    leadingIcon = { Icon(Icons.Filled.RestartAlt, contentDescription = null) },
+                    enabled = !lifecycle.acting && plan != null && !restartPlanning && !plan.skipped,
+                    onClick = { menu = false; confirmRestart = true },
+                )
                 DropdownMenuItem(
                     text = { Text("Stop seat…") },
                     leadingIcon = { Icon(Icons.Filled.StopCircle, contentDescription = null) },
@@ -370,6 +407,42 @@ private fun SeatHeader(
             }
         }
     }
+}
+
+/** Restart or adopt this seat? What it does, from the server's plan: the versions, and what the restart carries over. */
+@Composable
+private fun RestartSeatDialog(plan: RestartPlan, onConfirm: (confirmProtected: Boolean) -> Unit, onDismiss: () -> Unit) {
+    val adopt = plan.action == RestartPlan.ADOPT
+    // A protected seat takes a second, deliberate yes.
+    var protectedOk by remember(plan.sessionId) { mutableStateOf(false) }
+    val versions = listOfNotNull(plan.clientVersion?.let { "from $it" }, plan.targetVersion?.let { "to $it" }).joinToString(" ")
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (adopt) "Adopt ${plan.title}?" else "Restart ${plan.title}?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    if (adopt) "It runs outside tmux. It is stopped and started again as a tmux seat on ${plan.host ?: "its machine"}, " +
+                        "on the machine's current Claude Code, resuming its conversation. Its old terminal window is left showing the exited claude."
+                    else "Its Claude Code is ended and started again in its tmux window on ${plan.host ?: "its machine"}, resuming its conversation.",
+                )
+                if (versions.isNotEmpty()) Text("Claude Code $versions", style = MaterialTheme.typography.bodySmall)
+                val carried = plan.argvNames + plan.envNames
+                if (carried.isNotEmpty()) Text("Carries over: ${carried.joinToString(", ")}", style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace)
+                if (plan.isProtected) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(protectedOk, { protectedOk = it })
+                    Text("${plan.title} is protected. Restart it anyway.", style = MaterialTheme.typography.bodyMedium, color = StatusColors.bad)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(plan.isProtected && protectedOk) }, enabled = !plan.isProtected || protectedOk) {
+                Text(if (adopt) "Adopt" else "Restart")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

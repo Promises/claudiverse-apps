@@ -14,6 +14,7 @@ import dev.claudiverse.core.Api
 import dev.claudiverse.core.CoreLog
 import dev.claudiverse.core.HumanRequests
 import dev.claudiverse.core.PoolEvents
+import dev.claudiverse.core.Restarts
 import dev.claudiverse.core.Profiles
 import dev.claudiverse.core.Outbox
 import dev.claudiverse.core.PhoenixSocket
@@ -59,6 +60,14 @@ class AppContainer private constructor(context: Context) {
     fun watchPool() = synchronized(this) { if (poolWatchers++ == 0) poolEvents.start() }
 
     fun unwatchPool() = synchronized(this) { if (--poolWatchers == 0) poolEvents.stop() }
+
+    /** Seat restarts as they happen (operator:events), while a seat's restart or Restart idle seats follows them. */
+    val restarts = Restarts(socket, scope)
+    private var restartWatchers = 0
+
+    fun watchRestarts() = synchronized(this) { if (restartWatchers++ == 0) restarts.start() }
+
+    fun unwatchRestarts() = synchronized(this) { if (--restartWatchers == 0) restarts.stop() }
     /** Seat profiles, kept current from operator:events while the Profiles screens are open. */
     val profiles = Profiles(api, socket, scope)
     private var profileWatchers = 0

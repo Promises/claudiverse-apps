@@ -1,6 +1,7 @@
 package dev.claudiverse.app.ui
 
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.RestartAlt
 import dev.claudiverse.app.profiles.ProfileEditorViewModel
 import dev.claudiverse.app.profiles.ProfilesViewModel
 import android.net.Uri
@@ -25,6 +26,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.rememberCoroutineScope
 import dev.claudiverse.app.spawn.NewSeatViewModel
+import dev.claudiverse.app.spawn.RestartIdleViewModel
 import dev.claudiverse.core.SpawnNotice
 import kotlinx.coroutines.launch
 import androidx.compose.material3.BadgedBox
@@ -165,6 +167,9 @@ fun AppRoot(app: AppContainer, openSeat: MutableStateFlow<SeatLink?>, openReauth
                     }
                 },
                 actions = {
+                    if (route == "seats") IconButton(onClick = { nav.navigate("restart-idle") }) {
+                        Icon(Icons.Filled.RestartAlt, contentDescription = "Restart idle seats")
+                    }
                     if (route == "seats") IconButton(onClick = { nav.navigate("profiles") }) {
                         Icon(Icons.Filled.Badge, contentDescription = "Profiles")
                     }
@@ -214,6 +219,7 @@ fun AppRoot(app: AppContainer, openSeat: MutableStateFlow<SeatLink?>, openReauth
                     onCreated = { newId -> nav.navigate("profile/$newId") { popUpTo("profile/{id}") { inclusive = true } } },
                 )
             }
+            composable("restart-idle") { RestartIdleScreen(viewModel { RestartIdleViewModel(app) }) }
             composable("new-seat") {
                 NewSeatScreen(viewModel { NewSeatViewModel(app) }, onClose = { nav.popBackStack() })
             }
@@ -320,7 +326,7 @@ private fun androidx.navigation.NavHostController.navigateTab(route: String) = n
 /** The tab a route belongs to, so a detail screen keeps its tab lit. */
 private fun tabFor(route: String?): String? = when {
     route == null -> null
-    route.startsWith("seat/") || route == "profiles" || route.startsWith("profile/") -> "seats"
+    route.startsWith("seat/") || route == "profiles" || route.startsWith("profile/") || route == "restart-idle" -> "seats"
     route.startsWith("channel/") || route.startsWith("thread/") -> "forum"
     else -> route
 }
@@ -331,6 +337,7 @@ private fun titleFor(route: String?, args: android.os.Bundle?): String = when {
     route.startsWith("channel/") -> "#" + args?.getString("slug").orEmpty()
     route.startsWith("thread/") -> "Thread #" + (args?.getLong("id") ?: "")
     route == "profiles" -> "Profiles"
+    route == "restart-idle" -> "Restart idle seats"
     route.startsWith("profile/") -> if (args?.getLong("id") == NEW_PROFILE) "New profile" else "Profile"
     else -> TABS.firstOrNull { it.route == route }?.label ?: "Claudiverse"
 }
