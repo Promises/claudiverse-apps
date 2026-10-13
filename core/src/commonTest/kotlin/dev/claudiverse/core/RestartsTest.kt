@@ -18,6 +18,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -62,6 +63,22 @@ class RestartsTest {
         assertTrue(b.done)
         assertEquals(4, b.total)
         assertEquals(mapOf("restarted" to 2, "adopted" to 1, "skipped" to 1, "failed" to 0), b.counts)
+    }
+
+    @Test
+    fun aFailedRestartSaysWhetherTheSeatWasLeftStopped() {
+        fun e(outcome: String, code: String?) = SeatRestartEvent.from(
+            obj("""{"session_id":1,"outcome":"$outcome"${code?.let { ""","reason_code":"$it"""" } ?: ""}}"""),
+        )
+        assertTrue(e("failed", "not_restarted").leftStopped)
+        assertFalse(e("failed", "not_restarted").unconfirmed)
+        assertTrue(e("failed", "not_registered").unconfirmed)
+        assertFalse(e("failed", "not_registered").leftStopped)
+        assertFalse(e("failed", null).leftStopped || e("failed", null).unconfirmed)
+        // A machine's refusal before stopping anything is a skip, and finished.
+        val refused = e("skipped", "max_seats")
+        assertTrue(refused.finished)
+        assertFalse(refused.leftStopped)
     }
 
     @Test

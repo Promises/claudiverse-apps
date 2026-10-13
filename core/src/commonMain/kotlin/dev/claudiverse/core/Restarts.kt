@@ -31,7 +31,7 @@ data class RestartPlan(
     val action: String,
     /** Why it is skipped, a sentence for people; null when it is not. */
     val reason: String?,
-    /** The skip's code: busy, background, question, permission, recent_activity, runner, fleet, self, not_running, no_machine, offline, up_to_date, not_found, refused. */
+    /** The skip's code: busy, background, question, permission, recent_activity, runner, fleet, self, max_seats (the machine could not start it again), not_running, no_machine, offline, up_to_date, not_found, refused. */
     val reasonCode: String? = null,
     val clientVersion: String?,
     val targetVersion: String?,
@@ -100,7 +100,10 @@ class RestartRefused(message: String, val reasonCode: String?) : Exception(messa
 /** A batch restart the server accepted: it restarts [seats] one at a time. */
 data class RestartBatchStarted(val batchId: String, val seats: List<RestartPlan>)
 
-/** One seat's progress in a restart: [outcome] is started, restarted, adopted, skipped or failed. */
+/**
+ * One seat's progress in a restart: [outcome] is started, restarted, adopted,
+ * skipped (the machine refused before stopping anything) or failed.
+ */
 data class SeatRestartEvent(
     val sessionId: Long,
     val title: String?,
@@ -120,6 +123,12 @@ data class SeatRestartEvent(
 ) {
     /** Done, one way or the other: no later event for this seat in this restart. */
     val finished: Boolean get() = outcome in FINISHED
+
+    /** Stopped and not started again: [reason] ends with the command that brings it back by hand, so show it whole. */
+    val leftStopped: Boolean get() = outcome == "failed" && reasonCode == "not_restarted"
+
+    /** Started again, but its row did not register in time: it may be running anyway. */
+    val unconfirmed: Boolean get() = outcome == "failed" && reasonCode == "not_registered"
 
     companion object {
         val FINISHED = setOf("restarted", "adopted", "skipped", "failed")

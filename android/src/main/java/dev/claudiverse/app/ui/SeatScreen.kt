@@ -254,7 +254,8 @@ fun SeatScreen(vm: SeatViewModel, showInfo: Boolean, onShowInfo: (Boolean) -> Un
         ui.notice?.let { notice ->
             Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(notice, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    // Selectable: a seat a restart left stopped comes with the command that brings it back.
+                    SelectionContainer(Modifier.weight(1f)) { Text(notice, style = MaterialTheme.typography.bodySmall) }
                     TextButton(onClick = vm::dismissNotice) { Text("OK") }
                 }
             }

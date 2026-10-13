@@ -18,8 +18,8 @@ class RestartChoicesTest {
         assertEquals(setOf(1L, 2L), defaultSelection(plan))
     }
 
-    private fun event(outcome: String, newVersion: String? = "2.1.296", killed: Boolean = false, reason: String? = null, note: String? = null) =
-        SeatRestartEvent(5, "lorem-w1", "ipsum-box", outcome, reason, null, "2.1.292", newVersion, null, killed, note, "r1", null)
+    private fun event(outcome: String, newVersion: String? = "2.1.296", killed: Boolean = false, reason: String? = null, note: String? = null, code: String? = null) =
+        SeatRestartEvent(5, "lorem-w1", "ipsum-box", outcome, reason, code, "2.1.292", newVersion, null, killed, note, "r1", null)
 
     @Test
     fun aFinishedRestartReadsAsOneLine() {
@@ -29,5 +29,16 @@ class RestartChoicesTest {
             restartOutcome(event("adopted", note = "The old window shows the exited claude.")))
         assertEquals("Not restarted: It is busy.", restartOutcome(event("skipped", reason = "It is busy.")))
         assertEquals("Restart failed: no reason given", restartOutcome(event("failed")))
+    }
+
+    @Test
+    fun aSeatLeftStoppedKeepsTheWholeResumeCommand() {
+        val why = "It did not start again after two tries. Bring it back with: cd ~/lorem && claude --resume abc"
+        val line = restartOutcome(event("failed", newVersion = null, reason = why, code = "not_restarted"))
+        assertTrue(line, line.startsWith("Stopped and not started again: "))
+        assertTrue(line, line.endsWith("claude --resume abc"))
+        assertTrue(restartOutcome(event("failed", reason = "No row within 90 s.", code = "not_registered")).contains("may be running"))
+        assertEquals("Not restarted: would exceed max_seats (4)",
+            restartOutcome(event("skipped", newVersion = null, reason = "would exceed max_seats (4)", code = "max_seats")))
     }
 }

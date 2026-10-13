@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Lock
@@ -40,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.claudiverse.app.spawn.RestartIdleState
 import dev.claudiverse.app.spawn.RestartIdleViewModel
 import dev.claudiverse.core.RestartPlan
+import dev.claudiverse.core.SeatRestartEvent
 
 /**
  * Restart idle seats onto their machine's current Claude Code: choose the
@@ -70,7 +72,7 @@ fun RestartIdleScreen(vm: RestartIdleViewModel) {
                 }
             } else {
                 item { BatchSummary(ui) }
-                items(ui.rows, key = { it.plan.sessionId }) { r -> ProgressRow(r.plan, r.status, r.event?.reason ?: r.event?.note) }
+                items(ui.rows, key = { it.plan.sessionId }) { r -> ProgressRow(r.plan, r.status, r.event) }
             }
         }
         if (ui.batchId == null) Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
@@ -195,21 +197,30 @@ private fun BatchSummary(ui: RestartIdleState) {
     }
 }
 
-/** A seat in a running batch: waiting its turn, started, then how it ended, with why when it did not. */
+/**
+ * A seat in a running batch: waiting its turn, started, then how it ended,
+ * with why when it did not. The why is selectable: for a seat left stopped it
+ * ends with the command that brings it back.
+ */
 @Composable
-private fun ProgressRow(p: RestartPlan, status: String, detail: String?) {
-    val (label, color) = when (status) {
-        "restarted", "adopted" -> status to StatusColors.good
-        "failed" -> status to StatusColors.bad
+private fun ProgressRow(p: RestartPlan, status: String, event: SeatRestartEvent?) {
+    val detail = event?.reason ?: event?.note
+    val (label, color) = when {
+        event?.leftStopped == true -> "stopped" to StatusColors.bad
+        event?.unconfirmed == true -> "unconfirmed" to StatusColors.busy
+        else -> when (status) {
+            "restarted", "adopted" -> status to StatusColors.good
+            "failed" -> status to StatusColors.bad
         "started" -> "restarting" to StatusColors.busy
-        "skipped" -> status to StatusColors.muted
-        else -> "waiting" to StatusColors.muted
+            "skipped" -> status to StatusColors.muted
+            else -> "waiting" to StatusColors.muted
+        }
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Pill(label, color)
         Column(Modifier.weight(1f)) {
             Text(p.title, style = MaterialTheme.typography.titleSmall)
-            detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            detail?.let { SelectionContainer { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
         }
     }
 }

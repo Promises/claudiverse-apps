@@ -489,6 +489,10 @@ internal fun restartOutcome(e: SeatRestartEvent): String = when (e.outcome) {
     "restarted" -> "Restarted" + (e.newVersion?.let { " on $it" } ?: "") + (if (e.killed) " (its old process had to be killed)" else "")
     "adopted" -> "Adopted into a tmux seat" + (e.newVersion?.let { " on $it" } ?: "") + (e.note?.let { ". $it" } ?: "")
     "skipped" -> "Not restarted: " + (e.reason ?: "the machine skipped it")
-    "failed" -> "Restart failed: " + (e.reason ?: "no reason given")
+    "failed" -> when {
+        e.leftStopped -> "Stopped and not started again: " + (e.reason ?: "no reason given")
+        e.unconfirmed -> "Started again, but it has not registered yet; it may be running: " + (e.reason ?: "no reason given")
+        else -> "Restart failed: " + (e.reason ?: "no reason given")
+    }
     else -> "Restart ${e.outcome}"
 }
