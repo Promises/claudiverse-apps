@@ -493,6 +493,14 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
         call(HttpMethod.Delete, listOf("tokens", "$id"))
     }
 
+    /** The server's model list (GET /api/models), or null from a server without one yet (404) or with an empty one. */
+    @Throws(Exception::class)
+    suspend fun modelCatalog(): ModelCatalog? = try {
+        ModelCatalog.from(get("models")).takeIf { it.models.isNotEmpty() }
+    } catch (e: ApiException) {
+        if (e.httpStatus == 404) null else throw e
+    }
+
     // --- the Android app's updates ---
 
     /** The newest published build of the Android app, or null when none is published (404). */

@@ -1,5 +1,6 @@
 package dev.claudiverse.app.seat
 
+import dev.claudiverse.core.ModelCatalog
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.claudiverse.app.AppContainer
@@ -91,6 +92,9 @@ data class SeatUiState(
  * decline, permission, interrupt).
  */
 class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel() {
+
+    /** The models this screen offers; read again from the server each time it opens. */
+    val models: StateFlow<ModelCatalog> = app.models.catalog.also { app.models.refresh() }
 
     /** Pictures in this seat's messages, loaded through the app's shared cache. */
     val images: TranscriptImages get() = app.images

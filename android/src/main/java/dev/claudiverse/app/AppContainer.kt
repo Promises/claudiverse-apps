@@ -10,6 +10,7 @@ import dev.claudiverse.app.seat.TranscriptImages
 import dev.claudiverse.app.update.AppUpdates
 import dev.claudiverse.app.vpn.AppVpn
 import dev.claudiverse.app.vpn.AutoVpn
+import dev.claudiverse.core.ModelCatalogs
 import dev.claudiverse.core.Api
 import dev.claudiverse.core.CoreLog
 import dev.claudiverse.core.HumanRequests
@@ -50,6 +51,8 @@ class AppContainer private constructor(context: Context) {
     val updates = AppUpdates(context, api, scope)
     /** Spawns started from the app, followed to their outcome. */
     val spawns = SpawnTracker(api, socket, scope)
+    /** The models a seat can run: the server's list once read, the built-in one until then. */
+    val models = ModelCatalogs(api, scope)
     /** Pictures in transcripts, cached by file. */
     val images = TranscriptImages(api)
     /** Live changes to the Anthropic account pool (operator:events "pool"), while the Pool tab or the watcher listens. */

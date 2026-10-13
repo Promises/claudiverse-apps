@@ -56,7 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.claudiverse.core.Host
-import dev.claudiverse.core.SessionChoices
+import dev.claudiverse.core.ModelCatalog
 import dev.claudiverse.core.FolderTab
 import dev.claudiverse.core.crumbs
 import dev.claudiverse.core.NewSeatState
@@ -261,6 +261,7 @@ private fun join(dir: String, name: String) = if (dir.endsWith("/")) dir + name 
 
 @Composable
 private fun Details(ui: NewSeatState, vm: NewSeatViewModel) {
+    val models by vm.models.collectAsStateWithLifecycle()
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         OutlinedTextField(ui.title, vm::setTitle, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -274,7 +275,7 @@ private fun Details(ui: NewSeatState, vm: NewSeatViewModel) {
                 }
             }
         }
-        ui.hosts.firstOrNull { it.name == ui.host }?.let { ModelAndPool(it, ui, vm) }
+        ui.hosts.firstOrNull { it.name == ui.host }?.let { ModelAndPool(it, ui, vm, models) }
         OutlinedTextField(ui.prompt, vm::setPrompt, label = { Text("First prompt (optional)") },
             placeholder = { Text("What should this seat start on?") }, minLines = 3, modifier = Modifier.fillMaxWidth())
     }
@@ -287,7 +288,7 @@ private fun Details(ui: NewSeatState, vm: NewSeatViewModel) {
  * login of its own) always uses the pool.
  */
 @Composable
-private fun ModelAndPool(host: Host, ui: NewSeatState, vm: NewSeatViewModel) {
+private fun ModelAndPool(host: Host, ui: NewSeatState, vm: NewSeatViewModel, catalog: ModelCatalog) {
     val spawn = host.spawn
     val offersModel = spawn?.offersModel == true
     val offersPool = spawn?.offersPool == true
@@ -298,7 +299,7 @@ private fun ModelAndPool(host: Host, ui: NewSeatState, vm: NewSeatViewModel) {
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val chosen = if (offersModel) ui.model else null
             // Exact ids, only those the machine's Claude Code knows: an alias resolves differently by version.
-            val models = SessionChoices.spawnModels(spawn?.version).map { it.id to it.label }
+            val models = catalog.spawnModels(spawn?.version).map { it.id to it.label }
             (listOf<Pair<String?, String>>(null to "Machine's default") + models).forEach { (id, label) ->
                 FilterChip(id == chosen, { vm.setModel(id) }, enabled = offersModel, label = { Text(label) },
                     leadingIcon = if (id == chosen) ({ Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }) else null)

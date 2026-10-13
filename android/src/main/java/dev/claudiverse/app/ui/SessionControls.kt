@@ -54,6 +54,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import dev.claudiverse.core.ModelCatalog
 import dev.claudiverse.core.ModelChoice
 import dev.claudiverse.core.SessionChoices
 import dev.claudiverse.core.Upload
@@ -70,6 +71,8 @@ import kotlinx.io.buffered
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SessionSheet(
+    /** The models to offer: the server's list, or the built-in one. */
+    catalog: ModelCatalog,
     runningModel: String?,
     /** The seat's Claude Code version: a model newer than it is not offered. */
     clientVersion: String?,
@@ -100,14 +103,14 @@ fun SessionSheet(
                 Text("Model", style = MaterialTheme.typography.labelLarge)
                 Text("Running: ${runningModel ?: "unknown"}. Claude 5 models have the 1M window as they are.",
                     style = MaterialTheme.typography.bodySmall)
-                SessionChoices.models.filter { it.knownBy(clientVersion) || SessionChoices.isRunning(it, runningModel) }
+                catalog.models.filter { it.knownBy(clientVersion) || SessionChoices.isRunning(it, runningModel) }
                     .forEach { ModelRow(it, runningModel, onModel) }
                 // Open by itself when the seat runs an older model, so the running mark is never hidden.
-                var older by rememberSaveable { mutableStateOf(SessionChoices.olderModels.any { SessionChoices.isRunning(it, runningModel) }) }
+                var older by rememberSaveable { mutableStateOf(catalog.olderModels.any { SessionChoices.isRunning(it, runningModel) }) }
                 TextButton(onClick = { older = !older }) { Text(if (older) "▾ Older models" else "▸ Older models") }
-                if (older) SessionChoices.olderModels.forEach { ModelRow(it, runningModel, onModel) }
+                if (older) catalog.olderModels.forEach { ModelRow(it, runningModel, onModel) }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SessionChoices.aliases.forEach { (alias, label) -> FilterChip(false, { onModel(alias) }, label = { Text(label) }) }
+                    catalog.aliases.forEach { (alias, label) -> FilterChip(false, { onModel(alias) }, label = { Text(label) }) }
                 }
             }
             Section("Effort", "Running: ${effort ?: "unknown until the next reply"}") {

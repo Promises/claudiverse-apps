@@ -105,6 +105,7 @@ import dev.claudiverse.core.TranscriptItem
 @Composable
 fun SeatScreen(vm: SeatViewModel, showInfo: Boolean, onShowInfo: (Boolean) -> Unit) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val models by vm.models.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     LifecycleResumeEffect(vm) {
         vm.onResume()
@@ -189,6 +190,7 @@ fun SeatScreen(vm: SeatViewModel, showInfo: Boolean, onShowInfo: (Boolean) -> Un
             joined = ui.joined, effort = ui.effort, loadError = ui.loadError, onDismiss = { onShowInfo(false) },
         )
         if (showSettings) SessionSheet(
+            catalog = models,
             runningModel = ui.seat?.model,
             clientVersion = ui.seat?.clientVersion,
             effort = ui.effort,

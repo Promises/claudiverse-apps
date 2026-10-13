@@ -40,7 +40,7 @@ object SessionChoices {
         ModelChoice("Haiku 4.5", "claude-haiku-4-5", oneM = false),
     )
 
-    /** Earlier generations, folded away so the list stays short. Claude 3 is left out. */
+    /** Earlier generations, folded away so the list stays short. Claude 3 is left out. The server's list replaces these when it has one ([ModelCatalog]). */
     val olderModels = listOf(
         ModelChoice("Opus 4.8", "claude-opus-4-8", oneM = false),
         ModelChoice("Opus 4.7", "claude-opus-4-7", oneM = false),
@@ -49,7 +49,7 @@ object SessionChoices {
         ModelChoice("Opus 4.1", "claude-opus-4-1", oneM = false),
         ModelChoice("Sonnet 4.6", "claude-sonnet-4-6", oneM = true),
         ModelChoice("Sonnet 4.5", "claude-sonnet-4-5", oneM = true),
-        ModelChoice("Sonnet 4", "claude-sonnet-4-0", oneM = false),
+        ModelChoice("Sonnet 4", "claude-sonnet-4-0", oneM = true),
     )
 
     /** Aliases with no single model behind them. */
@@ -77,16 +77,6 @@ object SessionChoices {
     }
 
     private val ONE_M = Regex("""\[1m]""", RegexOption.IGNORE_CASE)
-
-    /**
-     * The models a seat can be started with on a machine running Claude Code
-     * [version]: exact ids, so the seat shows as the model it runs. A bare
-     * "haiku" would be Haiku 4.5 on a machine before 2.1.293 and 5.5 after.
-     */
-    fun spawnModels(version: String?): List<ModelChoice> =
-        listOf("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-haiku-4-5")
-            .map { id -> models.single { it.id == id } }
-            .filter { it.knownBy(version) }
 }
 
 /** Dotted versions compared part by part as numbers ("2.1.296" >= "2.1.293"); a part that is not a number counts as 0. */

@@ -1,5 +1,6 @@
 package dev.claudiverse.app.profiles
 
+import dev.claudiverse.core.ModelCatalog
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.claudiverse.app.AppContainer
@@ -65,6 +66,9 @@ data class ProfileEditorState(
  * super token; start, stop and restart take the app token too.
  */
 class ProfileEditorViewModel(private val app: AppContainer, id: Long?) : ViewModel() {
+
+    /** The models this screen offers; read again from the server each time it opens. */
+    val models: StateFlow<ModelCatalog> = app.models.catalog.also { app.models.refresh() }
     private val state = MutableStateFlow(ProfileEditorState(id = id))
     val ui: StateFlow<ProfileEditorState> = state.asStateFlow()
 

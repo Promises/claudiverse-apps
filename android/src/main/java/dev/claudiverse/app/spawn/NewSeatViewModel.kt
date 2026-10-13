@@ -1,5 +1,6 @@
 package dev.claudiverse.app.spawn
 
+import dev.claudiverse.core.ModelCatalog
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.claudiverse.app.AppContainer
@@ -25,6 +26,9 @@ import kotlinx.coroutines.flow.drop
  * whenever one's agent joins or leaves.
  */
 class NewSeatViewModel(private val app: AppContainer) : ViewModel() {
+
+    /** The models this screen offers; read again from the server each time it opens. */
+    val models: StateFlow<ModelCatalog> = app.models.catalog.also { app.models.refresh() }
 
     private val state = MutableStateFlow(NewSeatState())
     val ui: StateFlow<NewSeatState> = state.asStateFlow()

@@ -26,7 +26,7 @@ class ModelChoicesTest {
     @Test
     fun onlyTwoHundredKModelsOfferTheOneMVariant() {
         val oneM = (SessionChoices.models + SessionChoices.olderModels).filter { it.oneM }.map { it.id }.toSet()
-        assertEquals(setOf("claude-opus-4-6", "claude-sonnet-4-6", "claude-sonnet-4-5"), oneM)
+        assertEquals(setOf("claude-opus-4-6", "claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4-0"), oneM)
     }
 
     @Test
@@ -39,10 +39,10 @@ class ModelChoicesTest {
     @Test
     fun aSpawnSendsExactIdsTheMachinesClaudeCodeKnows() {
         assertEquals(listOf("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-haiku-4-5"),
-            SessionChoices.spawnModels("2.1.296").map { it.id })
+            ModelCatalog.BUILT_IN.spawnModels("2.1.296").map { it.id })
         assertEquals(listOf("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5"),
-            SessionChoices.spawnModels("2.1.291").map { it.id })
-        assertFalse(SessionChoices.spawnModels(null).any { it.id == "claude-haiku-5-5" })
+            ModelCatalog.BUILT_IN.spawnModels("2.1.291").map { it.id })
+        assertFalse(ModelCatalog.BUILT_IN.spawnModels(null).any { it.id == "claude-haiku-5-5" })
     }
 
     @Test

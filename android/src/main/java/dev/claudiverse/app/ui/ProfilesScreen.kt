@@ -58,6 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.claudiverse.app.profiles.ProfileEditorState
 import dev.claudiverse.app.profiles.ProfileEditorViewModel
 import dev.claudiverse.app.profiles.ProfilesViewModel
+import dev.claudiverse.core.ModelCatalog
 import dev.claudiverse.core.Profile
 import dev.claudiverse.core.ProfileFields
 import dev.claudiverse.core.ProfileStart
@@ -163,6 +164,7 @@ private fun lastStartLine(last: ProfileStart): String = buildString {
 @Composable
 fun ProfileEditorScreen(vm: ProfileEditorViewModel, onClose: () -> Unit, onOpenSeat: (Long, String) -> Unit, onCreated: (Long) -> Unit) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val models by vm.models.collectAsStateWithLifecycle()
     val focus = LocalFocusManager.current
     LaunchedEffect(ui.gone) { if (ui.gone) onClose() }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -181,7 +183,7 @@ fun ProfileEditorScreen(vm: ProfileEditorViewModel, onClose: () -> Unit, onOpenS
             ui.profile?.let { StatusCard(it, ui.busy, vm::control, onOpenSeat) }
             if (ui.conflicts.isNotEmpty()) ConflictCard(ui, vm::takeTheirs)
             SeatSection(ui, vm)
-            LaunchSection(ui, vm)
+            LaunchSection(ui, vm, models)
             StartingSection(ui, vm)
             if (!ui.isNew) OutlinedButton(onClick = { confirmDelete = true }, enabled = !ui.busy) { Text("Delete profile…", color = StatusColors.bad) }
         }
@@ -287,7 +289,7 @@ private fun SeatSection(ui: ProfileEditorState, vm: ProfileEditorViewModel) {
 }
 
 @Composable
-private fun LaunchSection(ui: ProfileEditorState, vm: ProfileEditorViewModel) {
+private fun LaunchSection(ui: ProfileEditorState, vm: ProfileEditorViewModel, catalog: ModelCatalog) {
     val d = ui.draft
     val host = ui.host
     Section("Launch") {
@@ -299,7 +301,7 @@ private fun LaunchSection(ui: ProfileEditorState, vm: ProfileEditorViewModel) {
             placeholder = { Text("Claude Code's default") }, singleLine = true, modifier = Modifier.fillMaxWidth(), isError = "model" in ui.errors)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FilterChip(selected = d.model == null, onClick = { vm.edit("model") { it.copy(model = null) } }, label = { Text("Default") })
-            SessionChoices.models.forEach { m ->
+            catalog.models.forEach { m ->
                 FilterChip(selected = d.model == m.id, onClick = { vm.edit("model") { it.copy(model = m.id) } }, label = { Text(m.label) })
             }
         }
