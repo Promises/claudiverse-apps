@@ -61,6 +61,18 @@ final class RestartViewsTests: XCTestCase {
         XCTAssertEqual(RestartProgressRow.note(RestartRow(plan: plan(2, "skip", reason: "busy"), event: nil)), "busy")
     }
 
+    /// A seat left stopped says so, shows its reason whole, and offers the command that brings it back.
+    func testASeatLeftStoppedOffersItsResumeCommand() {
+        let reason = "It did not start again after two tries. Bring it back with: cd ~/projects/x && claude --resume abc"
+        let row = RestartRow(plan: plan(1, "restart"), event: event(1, "failed", reason: reason, code: "not_restarted"))
+        XCTAssertEqual(RestartWording.status(row), "stopped")
+        XCTAssertEqual(RestartProgressRow.note(row), reason)
+        XCTAssertEqual(RestartProgressRow.resumeCommand(row), "cd ~/projects/x && claude --resume abc")
+        let unconfirmed = RestartRow(plan: plan(1, "restart"), event: event(1, "failed", reason: "No row.", code: "not_registered"))
+        XCTAssertEqual(RestartWording.status(unconfirmed), "unconfirmed")
+        XCTAssertNil(RestartProgressRow.resumeCommand(unconfirmed))
+    }
+
     /// Progress: plan order, the latest outcome per seat in this batch, failures and kills in red.
     func testProgressFollowsTheBatchsEvents() {
         let p = [plan(1, "restart"), plan(2, "adopt"), plan(3, "restart")]

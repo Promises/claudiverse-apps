@@ -74,6 +74,8 @@ final class AppModel {
     private(set) var restartBatches: [String: RestartBatchEvent] = [:]
     /// Restart idle seats is open, for one machine or all.
     var restartScope: RestartScope?
+    /// The models to offer: the server's list once read, built in until then (core's ModelCatalogs).
+    private(set) var modelCatalog: ModelCatalog = ModelCatalog.companion.BUILT_IN
     /// Seat profiles with their derived status, live from "profile" events.
     private(set) var profiles: [Profile] = []
     /// The profile open in the Profiles section; nil with [creatingProfile] for a new one.
@@ -269,6 +271,7 @@ final class AppModel {
         client.profiles.start()
         client.poolEvents.start()
         client.restarts.start()
+        client.models.refresh()
         drafts.removeStalePastes()
         notifier.requestPermission()
         running = [
@@ -301,6 +304,9 @@ final class AppModel {
             },
             Task { [weak self, client] in
                 for await events in client.restarts.events { self?.restartEvents = events }
+            },
+            Task { [weak self, client] in
+                for await catalog in client.models.catalog { self?.modelCatalog = catalog }
             },
             Task { [weak self, client] in
                 for await batches in client.restarts.batches { self?.restartBatches = batches }

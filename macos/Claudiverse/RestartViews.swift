@@ -46,7 +46,9 @@ enum RestartWording {
 
     /// An outcome as a row says it.
     static func status(_ row: RestartRow) -> String {
-        switch row.status {
+        if row.event?.leftStopped == true { return "stopped" }
+        if row.event?.unconfirmed == true { return "unconfirmed" }
+        return switch row.status {
         case "waiting": "waiting"
         case "started": "restarting…"
         case "restarted": "restarted"
@@ -273,6 +275,12 @@ struct RestartProgressRow: View {
                 Text(row.plan.title).fontWeight(.medium)
                 if let note = Self.note(row) {
                     Text(note).font(.caption).foregroundStyle(e?.killed == true || row.status == "failed" ? Theme.bad : .secondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let command = Self.resumeCommand(row) {
+                    Button("Copy Command") { TranscriptRows.copy(command) }.controlSize(.small)
+                        .help("Copy the command that brings this seat back")
                 }
                 if e?.killed == true { Text("The old process had to be killed.").font(.caption).foregroundStyle(Theme.bad) }
             }
@@ -290,14 +298,24 @@ struct RestartProgressRow: View {
      */
     static func note(_ row: RestartRow) -> String? {
         let e = row.event
+        // Left stopped: the reason, whole, ends with the command that brings it back.
+        if e?.leftStopped == true { return e?.reason ?? e?.note ?? "It was stopped and did not start again." }
         if let note = e?.note { return note }
         switch row.status {
         case "failed":
             let reason = e?.reason ?? "the restart failed"
-            return e?.reasonCode == "not_registered" ? reason + " It may be running anyway: look at its terminal." : reason
+            return e?.unconfirmed == true ? reason + " It may be running anyway: look at its terminal." : reason
         case "skipped": return e?.reason ?? row.plan.reason
         default: return nil
         }
+    }
+
+    /// The command a seat left stopped is brought back with: the reason's text after "Bring it back with:".
+    static func resumeCommand(_ row: RestartRow) -> String? {
+        guard row.event?.leftStopped == true, let reason = row.event?.reason,
+              let r = reason.range(of: "Bring it back with:") else { return nil }
+        let command = reason[r.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+        return command.isEmpty ? nil : command
     }
 
     static func icon(_ status: String) -> String {

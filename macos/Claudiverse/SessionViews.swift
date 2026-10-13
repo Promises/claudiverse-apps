@@ -10,15 +10,19 @@ import SwiftUI
 struct SessionControlsMenu: View {
     let state: SeatState
     let session: SeatSession
+    @Environment(AppModel.self) private var app
+
+    /// Only models the seat's Claude Code knows (Haiku 5.5 needs 2.1.293, say).
+    private func known(_ models: [ModelChoice]) -> [ModelChoice] { models.filter { $0.knownBy(version: state.seat?.clientVersion) } }
 
     var body: some View {
         Menu {
             Section("Model: \(state.seat?.model ?? "unknown")") {
-                ForEach(SessionChoices.shared.models, id: \.id) { modelItem($0) }
+                ForEach(known(app.modelCatalog.models), id: \.id) { modelItem($0) }
                 Menu("Older models") {
-                    ForEach(SessionChoices.shared.olderModels, id: \.id) { modelItem($0) }
+                    ForEach(known(app.modelCatalog.olderModels), id: \.id) { modelItem($0) }
                 }
-                ForEach(SessionChoices.shared.aliases, id: \.id) { alias in
+                ForEach(app.modelCatalog.aliases, id: \.id) { alias in
                     Button(alias.label) { session.setModel(model: alias.id) }
                 }
             }

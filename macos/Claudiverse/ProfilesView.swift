@@ -295,7 +295,9 @@ struct ProfileFieldsForm: View {
             HStack {
                 TextField("Model", text: $draft.model, prompt: Text("Claude Code's default"))
                 Menu("Models") {
-                    ForEach(SessionChoices.shared.models, id: \.id) { m in
+                    // The ones the profile's runtime knows (its Claude Code version, from the machine).
+                    let version = host?.runtimes.first { $0.name == draft.runtime }?.version
+                    ForEach(model.modelCatalog.models.filter { $0.knownBy(version: version) }, id: \.id) { m in
                         Button(m.label) { draft.model = m.oneM ? "\(m.id)[1m]" : m.id }
                     }
                     Divider()

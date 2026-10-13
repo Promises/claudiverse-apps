@@ -23,6 +23,8 @@ class ClaudiverseClient(access: () -> ServerAccess, outboxStore: OutboxStore) {
     val fleets = Fleets(api, socket, scope)
     val profiles = Profiles(api, socket, scope)
     val poolEvents = PoolEvents(socket, scope)
+    /** The models to offer: the server's list once [ModelCatalogs.refresh] has read it, built in until then. */
+    val models = ModelCatalogs(api, scope)
     /** Seat restarts as they happen; start it while a restart is followed. */
     val restarts = Restarts(socket, scope)
 
