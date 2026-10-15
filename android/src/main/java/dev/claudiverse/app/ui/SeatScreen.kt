@@ -270,7 +270,7 @@ fun SeatScreen(vm: SeatViewModel, showInfo: Boolean, onShowInfo: (Boolean) -> Un
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp))
         }
-        OutboxPanel(ui.outbox, onSend = { vm.forceSend(it) }, onRemove = vm::unqueue)
+        OutboxPanel(ui.outbox, onSend = { vm.forceSend(it) }, onSendNow = { vm.forceSend(it, interrupt = true) }, onRemove = vm::unqueue)
         AttachmentChips(attachments, onRemove = { f -> attachments = attachments - f })
         Composer(
             sending = ui.sending || ui.uploading,
@@ -458,10 +458,10 @@ private fun RestartSeatDialog(plan: RestartPlan, onConfirm: (confirmProtected: B
  * The seat's Outbox: Claude's own queue on the seat (it runs these in this
  * order, and they cannot be taken back), messages just sent that the seat has
  * not listed yet, and those held in this app until the seat can take them,
- * which can be sent now or cancelled.
+ * which can be sent (into Claude's queue), sent now (interrupting) or cancelled.
  */
 @Composable
-private fun OutboxPanel(rows: List<OutboxRow>, onSend: (Long) -> Unit, onRemove: (Long) -> Unit) {
+private fun OutboxPanel(rows: List<OutboxRow>, onSend: (Long) -> Unit, onSendNow: (Long) -> Unit, onRemove: (Long) -> Unit) {
     if (rows.isEmpty()) return
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
@@ -478,6 +478,9 @@ private fun OutboxPanel(rows: List<OutboxRow>, onSend: (Long) -> Unit, onRemove:
                     }
                     r.heldId?.let { id ->
                         TextButton(onClick = { onSend(id) }) { Text("Send") }
+                        IconButton(onClick = { onSendNow(id) }) {
+                            Icon(Icons.Filled.FastForward, contentDescription = "Send now: interrupt and run it at once")
+                        }
                         IconButton(onClick = { onRemove(id) }) { Icon(Icons.Filled.Close, contentDescription = "Cancel") }
                     }
                 }
