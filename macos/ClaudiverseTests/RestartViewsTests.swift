@@ -8,14 +8,16 @@ final class RestartViewsTests: XCTestCase {
                       old: String? = "2.1.292", new: String? = "2.1.296") -> RestartPlan {
         RestartPlan(sessionId: id, title: "seat-\(id)", host: "my-mac", fleet: "lorem-fleet", action: action, reason: reason,
                     reasonCode: action == "skip" ? (protected && reason == "protected" ? "protected" : "busy") : nil,
-                    clientVersion: old, targetVersion: new, argvNames: [], envNames: [], isProtected: protected)
+                    clientVersion: old, targetVersion: new, modVersion: nil, targetModVersion: nil, argvNames: [], envNames: [],
+                    isProtected: protected)
     }
 
     private func event(_ id: Int64, _ outcome: String, batch: String = "b1", killed: Bool = false, note: String? = nil,
-                       reason: String? = nil, code: String? = nil) -> SeatRestartEvent {
-        SeatRestartEvent(sessionId: id, title: nil, host: nil, outcome: outcome, reason: reason, reasonCode: code, oldVersion: "2.1.292",
-                         newVersion: outcome == "restarted" ? "2.1.296" : nil, newSessionId: nil, killed: killed, note: note,
-                         restartId: "r\(id)", batchId: batch)
+                       reason: String? = nil, code: String? = nil, origin: String? = nil, host: String? = nil,
+                       newSession: Int64? = nil) -> SeatRestartEvent {
+        SeatRestartEvent(sessionId: id, title: nil, host: host, outcome: outcome, reason: reason, reasonCode: code, oldVersion: "2.1.292",
+                         newVersion: outcome == "restarted" ? "2.1.296" : nil, newSessionId: newSession.map { KotlinLong(value: $0) },
+                         killed: killed, note: note, restartId: "r\(id)", batchId: batch, origin: origin)
     }
 
     /// Ticked to start: everything it would restart or adopt, never a skip, never a protected seat.
@@ -82,7 +84,44 @@ final class RestartViewsTests: XCTestCase {
         XCTAssertEqual(RestartProgressRow.color("failed"), Theme.bad)
         XCTAssertEqual(RestartProgressRow.icon("restarted"), "checkmark.circle.fill")
         let done = RestartBatchEvent(batchId: "b1", host: nil, state: "done", total: 3,
-                                     counts: ["restarted": KotlinInt(value: 2), "failed": KotlinInt(value: 1), "skipped": KotlinInt(value: 0)])
+                                     counts: ["restarted": KotlinInt(value: 2), "failed": KotlinInt(value: 1), "skipped": KotlinInt(value: 0)], origin: nil)
         XCTAssertEqual(RestartIdleSheet.summary(done), "Done: 2 restarted, 1 failed")
+    }
+
+    /// The server's auto-restart says so, on the seat and in Recent restarts; a person's restart reads as before.
+    func testAnAutoRestartSaysSo() {
+        XCTAssertEqual(RestartWording.autoOutcome(event(1, "restarted", origin: "auto")), "Auto-restarted on 2.1.296")
+        XCTAssertEqual(RestartWording.autoOutcome(event(1, "skipped", reason: "it is mid-turn", origin: "auto")), "Auto-restart skipped: it is mid-turn")
+        XCTAssertEqual(RestartWording.autoOutcome(event(1, "failed", reason: "spawn refused", origin: "auto")), "Auto-restart failed: spawn refused")
+        XCTAssertEqual(RestartWording.outcome(event(1, "restarted", killed: true)), "Restarted on 2.1.296 (its old process had to be killed)")
+        XCTAssertEqual(RestartWording.outcome(event(1, "failed", reason: "tmux new-session -s x", code: "not_restarted")),
+                       "Stopped and not started again: tmux new-session -s x")
+    }
+
+    /// A seat's latest finished auto-restart: under its old row or the one it registered, never a person's or an unfinished one.
+    func testASeatShowsItsLatestAutoRestart() {
+        let events = [event(1, "restarted", origin: "auto"), event(1, "started", origin: "auto"), event(2, "restarted"),
+                      event(3, "skipped", reason: "busy", origin: "auto", newSession: nil), event(4, "restarted", origin: "auto", newSession: 9)]
+        XCTAssertEqual(RestartWording.latestAuto(events, seat: 1)?.outcome, "restarted")
+        XCTAssertNil(RestartWording.latestAuto(events, seat: 2), "a person's restart is not an auto-restart")
+        XCTAssertEqual(RestartWording.latestAuto(events, seat: 9)?.sessionId, 4, "found under the row it registered")
+        XCTAssertNil(RestartWording.latestAuto(events, seat: 5))
+    }
+
+    /// Recent restarts: finished ones only, newest first, this machine's when the sheet is for one.
+    func testRecentRestartsAreFinishedNewestFirst() {
+        let events = [event(1, "restarted", host: "my-mac"), event(2, "started", host: "my-mac"),
+                      event(3, "failed", host: "ipsum-box"), event(4, "skipped", origin: "auto", host: "my-mac")]
+        XCTAssertEqual(RestartWording.recent(events, host: nil).map(\.sessionId), [4, 3, 1])
+        XCTAssertEqual(RestartWording.recent(events, host: "my-mac").map(\.sessionId), [4, 1])
+        XCTAssertEqual(RestartWording.recent(events, host: nil, limit: 1).map(\.sessionId), [4])
+    }
+
+    /// A row shows Claude Code's number, whichever client_version form the seat reports.
+    func testTheVersionDropsTheMod() {
+        XCTAssertEqual(RestartWording.claudeCode("2.1.300 (Claude Code) [claudiverse-mod 0.12.1]"), "2.1.300")
+        XCTAssertEqual(RestartWording.claudeCode("2.1.296 (Claude Code) [claudiverse-mod]"), "2.1.296")
+        XCTAssertEqual(RestartWording.claudeCode("2.1.292"), "2.1.292")
+        XCTAssertNil(RestartWording.claudeCode(nil))
     }
 }

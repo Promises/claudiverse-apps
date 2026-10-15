@@ -66,6 +66,44 @@ enum RestartWording {
 
     /// "Restart 3 seats", "Restart 1 seat".
     static func confirm(_ n: Int) -> String { n == 1 ? "Restart 1 seat" : "Restart \(n) seats" }
+
+    /// A seat's client_version as a row shows it: Claude Code's number alone ("2.1.300"), without the mod.
+    static func claudeCode(_ clientVersion: String?) -> String? {
+        ClientVersion.companion.parse(s: clientVersion).claudeCode ?? clientVersion
+    }
+
+    /// A finished restart in a line: "Restarted on 2.1.300", or how it ended and why.
+    static func outcome(_ e: SeatRestartEvent) -> String {
+        let on = e.newVersion.map { " on \($0)" } ?? ""
+        return switch e.outcome {
+        case "restarted": "Restarted\(on)" + (e.killed ? " (its old process had to be killed)" : "")
+        case "adopted": "Adopted into a tmux seat\(on)"
+        case "skipped": "Not restarted: \(e.reason ?? "the machine skipped it")"
+        case "failed" where e.leftStopped: "Stopped and not started again: \(e.reason ?? "no reason given")"
+        case "failed" where e.unconfirmed: "Started again, but it has not registered yet; it may be running"
+        case "failed": "Restart failed: \(e.reason ?? "no reason given")"
+        default: "Restart \(e.outcome)"
+        }
+    }
+
+    /// The same for the server's auto-restart of an idle seat: "Auto-restarted on 2.1.300", "Auto-restart skipped: …".
+    static func autoOutcome(_ e: SeatRestartEvent) -> String {
+        switch e.outcome {
+        case "restarted", "adopted": "Auto-restarted" + (e.newVersion.map { " on \($0)" } ?? "")
+        case "skipped": "Auto-restart skipped: \(e.reason ?? "the machine skipped it")"
+        default: "Auto-" + outcome(e).prefix(1).lowercased() + outcome(e).dropFirst()
+        }
+    }
+
+    /// A seat's latest finished auto-restart since the app started, under its old row or the one it registered.
+    static func latestAuto(_ events: [SeatRestartEvent], seat: Int64) -> SeatRestartEvent? {
+        events.last { $0.isAuto && $0.finished && ($0.sessionId == seat || $0.newSessionId?.int64Value == seat) }
+    }
+
+    /// Finished restarts, newest first, at most [limit]: the operator's and the server's auto-restarts.
+    static func recent(_ events: [SeatRestartEvent], host: String?, limit: Int = 20) -> [SeatRestartEvent] {
+        Array(events.filter { $0.finished && (host == nil || $0.host == host) }.suffix(limit).reversed())
+    }
 }
 
 /// Restart idle seats…: a dry run first, each seat ticked or not, then the chosen ones restarted one at a time.
@@ -95,6 +133,7 @@ struct RestartIdleSheet: View {
             } else {
                 options
                 planList
+                recentList
             }
             if let error { Text(error).foregroundStyle(Theme.bad).font(.callout) }
             HStack {
@@ -177,6 +216,37 @@ struct RestartIdleSheet: View {
         }
     }
 
+    /// Restarts finished since the app started, newest first, auto-restarts marked.
+    @ViewBuilder
+    private var recentList: some View {
+        let recent = RestartWording.recent(model.restartEvents, host: scope.host)
+        if !recent.isEmpty {
+            Divider()
+            Text("Recent restarts").font(.subheadline.weight(.semibold))
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(recent.enumerated()), id: \.offset) { _, e in recentRow(e) }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 160)
+        }
+    }
+
+    private func recentRow(_ e: SeatRestartEvent) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 6) {
+                Text(e.title ?? "Seat \(e.sessionId)").fontWeight(.medium)
+                if e.isAuto { Pill(text: "auto", color: Theme.info).help("Restarted by the server's auto-restart of idle seats") }
+                if scope.host == nil, let host = e.host { Text(host).font(.caption).foregroundStyle(.secondary) }
+            }
+            Text(e.isAuto ? RestartWording.autoOutcome(e) : RestartWording.outcome(e))
+                .font(.caption)
+                .foregroundStyle(e.outcome == "failed" ? Theme.bad : .secondary)
+                .textSelection(.enabled)
+        }
+    }
+
     private func planRow(_ p: RestartPlan) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Toggle("", isOn: Binding(get: { ticked.contains(p.sessionId) }, set: { on in
@@ -195,7 +265,8 @@ struct RestartIdleSheet: View {
                 if p.skipped, let reason = p.reason { Text(reason).font(.caption).foregroundStyle(.secondary) }
             }
             Spacer()
-            if let v = RestartWording.versions(p.clientVersion, p.targetVersion) {
+            if let v = RestartWording.versions(versionLabel(claudeCode: RestartWording.claudeCode(p.clientVersion), mod: p.modVersion),
+                                                versionLabel(claudeCode: p.targetVersion, mod: p.targetModVersion)) {
                 Text(v).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
             Pill(text: RestartWording.action(p), color: p.skipped ? Theme.muted : p.action == RestartPlan.companion.ADOPT ? Theme.info : Theme.good)

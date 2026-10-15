@@ -123,6 +123,13 @@ struct SeatDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 12).padding(.vertical, 4)
             }
+            if let auto = RestartWording.latestAuto(app.restartEvents, seat: seatId) {
+                Text(RestartWording.autoOutcome(auto))
+                    .font(.caption).foregroundStyle(auto.outcome == "failed" ? Theme.bad : .secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12).padding(.vertical, 4)
+            }
             if !s.outbox.isEmpty { OutboxPanel(rows: s.outbox, session: model.session) }
             if let notice = s.notice {
                 HStack {

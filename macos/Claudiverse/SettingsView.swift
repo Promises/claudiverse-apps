@@ -6,6 +6,7 @@ struct SettingsView: View {
         TabView {
             AccountSettings().tabItem { Label("Account", systemImage: "person.crop.circle") }
             MachinesSettings().tabItem { Label("Machines", systemImage: "desktopcomputer") }
+            AutoRestartSettings().tabItem { Label("Restarts", systemImage: "arrow.clockwise") }
             TokenSettings().tabItem { Label("Tokens", systemImage: "key") }
         }
         .frame(width: 640, height: 520)

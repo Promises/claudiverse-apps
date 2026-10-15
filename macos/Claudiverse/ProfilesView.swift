@@ -290,7 +290,7 @@ struct ProfileFieldsForm: View {
 
     private var launchSection: some View {
         Section("Launch") {
-            machineChoice("Runtime", selection: $draft.runtime, options: host?.runtimes.map { r in (r.name, r.version.map { "\(r.name) (\($0))" } ?? r.name) } ?? [], what: "runtimes")
+            machineChoice("Runtime", selection: $draft.runtime, options: host?.runtimes.map { r in (r.name, r.versionLabel.map { "\(r.name) (\($0))" } ?? r.name) } ?? [], what: "runtimes")
             fieldErrors("runtime")
             HStack {
                 TextField("Model", text: $draft.model, prompt: Text("Claude Code's default"))

@@ -100,7 +100,7 @@ struct MachineSection: View {
                 Circle().fill(host.online ? Theme.good : Theme.muted).frame(width: 8, height: 8)
                 Text(host.name).font(.headline)
                 Spacer()
-                Text([host.online ? "online" : "offline", "\(host.seats) seats", host.spawn?.version.map { "Claude Code \($0)" },
+                Text([host.online ? "online" : "offline", "\(host.seats) seats", (host.spawnRuntime?.versionLabel ?? host.spawn?.version).map { "Claude Code \($0)" },
                       host.version.map { "agent \($0)" }].compactMap { $0 }.joined(separator: " · "))
                     .font(.caption).foregroundStyle(.secondary)
                 if host.online && host.seats > 0 {

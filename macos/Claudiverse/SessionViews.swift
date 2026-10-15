@@ -94,7 +94,7 @@ struct SessionInfoView: View {
                     row("Permission mode", state.live?.permissionMode)
                     row("Session id", seat.claudeSessionId)
                     row("Conversation", seat.conversationId)
-                    row("Client version", seat.clientVersion)
+                    row("Client version", ClientVersion.companion.parse(s: seat.clientVersion).label ?? seat.clientVersion)
                 }
                 Section("Time") {
                     row("Started", seat.insertedAt.map { "\(localTime($0)) (\(relativeTime(iso: $0)))" })
