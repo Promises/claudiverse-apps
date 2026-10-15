@@ -39,10 +39,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.claudiverse.app.spawn.RestartIdleState
-import dev.claudiverse.app.seat.autoRestartLine
 import dev.claudiverse.app.seat.restartOutcome
 import dev.claudiverse.app.spawn.RestartIdleViewModel
 import dev.claudiverse.core.RestartPlan
+import dev.claudiverse.core.autoRestartLabel
 import dev.claudiverse.core.SeatRestartEvent
 
 /**
@@ -218,7 +218,7 @@ private fun RecentRow(e: SeatRestartEvent) {
             if (e.isAuto) Pill("auto", StatusColors.info)
         }
         SelectionContainer {
-            Text(if (e.isAuto) autoRestartLine(e) else restartOutcome(e), style = MaterialTheme.typography.bodySmall,
+            Text(if (e.isAuto) autoRestartLabel(e) else restartOutcome(e), style = MaterialTheme.typography.bodySmall,
                 color = if (e.outcome == "failed") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

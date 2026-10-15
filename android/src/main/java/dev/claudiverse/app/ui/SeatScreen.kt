@@ -7,7 +7,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -63,6 +62,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -96,7 +96,6 @@ import dev.claudiverse.core.clipboardText
 import dev.claudiverse.core.composeAnswer
 import dev.claudiverse.app.seat.SeatUiState
 import dev.claudiverse.app.seat.SeatViewModel
-import dev.claudiverse.app.seat.autoRestartLine
 import dev.claudiverse.core.Timeline
 import dev.claudiverse.core.BackgroundTask
 import dev.claudiverse.core.RestartPlan
@@ -228,6 +227,7 @@ fun SeatScreen(vm: SeatViewModel, showInfo: Boolean, onShowInfo: (Boolean) -> Un
                 when (row) {
                     is TimelineRow.Divider -> TimeDivider(Timeline.label(row.at))
                     TimelineRow.Resumed -> ResumedDivider()
+                    is TimelineRow.Marker -> MarkerDivider(row.label, Timeline.label(row.at))
                     is TimelineRow.Entry -> TranscriptRow(
                         row.item, vm,
                         onImage = { image -> viewerAt = allImages.indexOf(image).coerceAtLeast(0) },
@@ -266,21 +266,16 @@ fun SeatScreen(vm: SeatViewModel, showInfo: Boolean, onShowInfo: (Boolean) -> Un
                 }
             }
         }
-        ui.autoRestart?.let { e ->
-            Text(autoRestartLine(e), style = MaterialTheme.typography.bodySmall,
-                color = if (e.outcome == "failed") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp))
-        }
         agent?.let {
             Text("${it.label}: its own thread. A message here goes to main; sending to an agent comes later.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp))
         }
-        OutboxPanel(ui.outbox, onSend = { vm.forceSend(it) }, onSendNow = { vm.forceSend(it, interrupt = true) }, onRemove = vm::unqueue)
+        QueuedList(ui.outbox, onSendNow = vm::sendNowRow, onRemove = vm::removeRow)
         AttachmentChips(attachments, onRemove = { f -> attachments = attachments - f })
         Composer(
             sending = ui.sending || ui.uploading,
-            busy = ui.live?.idle == false,
+            busy = ui.live?.idle == false || ui.outbox.isNotEmpty(),
             attached = attachments.size,
             blocked = attachments.any { it.tooBig },
             onSend = { text ->
@@ -291,7 +286,6 @@ fun SeatScreen(vm: SeatViewModel, showInfo: Boolean, onShowInfo: (Boolean) -> Un
                     attachments = emptyList()
                 }
             },
-            onSendNow = vm::sendNow,
             onAttach = { filePicker.launch(arrayOf("*/*")) },
         )
     }
@@ -461,33 +455,27 @@ private fun RestartSeatDialog(plan: RestartPlan, onConfirm: (confirmProtected: B
 }
 
 /**
- * The seat's Outbox: Claude's own queue on the seat (it runs these in this
- * order, and they cannot be taken back), messages just sent that the seat has
- * not listed yet, and those held in this app until the seat can take them,
- * which can be sent (into Claude's queue), sent now (interrupting) or cancelled.
+ * The seat's queued messages, as the app has always shown them: each with
+ * Send now and remove. Behind it, a row is in Claude's own queue on the seat
+ * (Send now interrupts the running turn, and Claude then runs its queue in
+ * order; it cannot be taken back) or held in this app until the seat can take
+ * it (Send now delivers it at once; remove cancels it).
  */
 @Composable
-private fun OutboxPanel(rows: List<OutboxRow>, onSend: (Long) -> Unit, onSendNow: (Long) -> Unit, onRemove: (Long) -> Unit) {
+private fun QueuedList(rows: List<OutboxRow>, onSendNow: (OutboxRow) -> Unit, onRemove: (OutboxRow) -> Unit) {
     if (rows.isEmpty()) return
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-            Text("Outbox", style = MaterialTheme.typography.labelSmall)
+            Text("Queued — sends when the seat goes idle", style = MaterialTheme.typography.labelSmall)
             rows.forEach { r ->
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.heightIn(min = 40.dp)) {
-                    Column(Modifier.weight(1f)) {
-                        Text(r.text, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            if (r.interrupting) CircularProgressIndicator(Modifier.size(10.dp), strokeWidth = 1.5.dp)
-                            Text(r.label, style = MaterialTheme.typography.labelSmall,
-                                color = if (r.kind == OutboxRow.Kind.HELD) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    r.heldId?.let { id ->
-                        TextButton(onClick = { onSend(id) }) { Text("Send") }
-                        IconButton(onClick = { onSendNow(id) }) {
-                            Icon(Icons.Filled.FastForward, contentDescription = "Send now: interrupt and run it at once")
-                        }
-                        IconButton(onClick = { onRemove(id) }) { Icon(Icons.Filled.Close, contentDescription = "Cancel") }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(r.text, style = MaterialTheme.typography.bodySmall, maxLines = 2,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { onSendNow(r) }) { Text("Send now") }
+                    IconButton(onClick = { onRemove(r) }) {
+                        // Only a held message can be taken back; the others say why not when tapped.
+                        Icon(Icons.Filled.Close, contentDescription = "Remove",
+                            tint = if (r.cancellable) LocalContentColor.current else MaterialTheme.colorScheme.outlineVariant)
                     }
                 }
             }
@@ -497,8 +485,7 @@ private fun OutboxPanel(rows: List<OutboxRow>, onSend: (Long) -> Unit, onSendNow
 
 @Composable
 private fun Composer(
-    sending: Boolean, busy: Boolean, attached: Int, blocked: Boolean, onSend: (String) -> Unit, onSendNow: (String) -> Unit,
-    onAttach: () -> Unit,
+    sending: Boolean, busy: Boolean, attached: Int, blocked: Boolean, onSend: (String) -> Unit, onAttach: () -> Unit,
 ) {
     var text by rememberSaveable { mutableStateOf("") }
     Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -508,21 +495,15 @@ private fun Composer(
             placeholder = {
                 Text(when {
                     attached > 0 -> "A note to go with ${if (attached == 1) "the file" else "the $attached files"} (optional)"
-                    busy -> "Seat working — Send queues it, Send now interrupts"
+                    busy -> "Seat busy — your message will queue"
                     else -> "Message the seat"
                 })
             },
             modifier = Modifier.weight(1f), maxLines = 6,
         )
         if (sending) CircularProgressIndicator(Modifier.padding(8.dp).size(24.dp))
-        else {
-            // Send now interrupts the running turn: only while the seat works, and not for files (they go as a note).
-            if (busy && attached == 0) IconButton(onClick = { onSendNow(text); text = "" }, enabled = text.isNotBlank()) {
-                Icon(Icons.Filled.FastForward, contentDescription = "Send now: interrupt and run it at once")
-            }
-            IconButton(onClick = { onSend(text); text = "" }, enabled = !blocked && (text.isNotBlank() || attached > 0)) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
-            }
+        else IconButton(onClick = { onSend(text); text = "" }, enabled = !blocked && (text.isNotBlank() || attached > 0)) {
+            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
         }
     }
 }
@@ -593,6 +574,21 @@ private fun MessageDetails(time: String?, onCopy: (() -> Unit)?, start: Boolean 
 }
 
 /** Where a resumed seat took over: above it, the conversation from its earlier rows. */
+/** Something that happened to the seat at a time, as a line in its transcript: an auto-restart. */
+@Composable
+private fun MarkerDivider(label: String, time: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+        Text(
+            "$label · $time",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 10.dp).weight(4f, fill = false),
+        )
+        HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+    }
+}
+
 @Composable
 private fun ResumedDivider() {
     Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {

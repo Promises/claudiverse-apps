@@ -27,6 +27,7 @@ import dev.claudiverse.core.ApiException
 import dev.claudiverse.core.RestartPlan
 import dev.claudiverse.core.RestartRefused
 import dev.claudiverse.core.SeatRestartEvent
+import dev.claudiverse.core.restartMarkers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapNotNull
@@ -92,8 +93,6 @@ data class SeatUiState(
     val agentThreads: Map<String, Transcript> = emptyMap(),
     /** What the seat runs in the background (shells, monitors, subagents, workflows), as it last reported. */
     val backgroundTasks: List<BackgroundTask> = emptyList(),
-    /** The server's latest finished auto-restart of this seat since the app started; null when none. */
-    val autoRestart: SeatRestartEvent? = null,
 )
 
 /**
@@ -155,10 +154,14 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
             app.outbox.items.collect { all -> state.update { withOutbox(it.copy(queued = all.filter { q -> q.seatId == seatId })) } }
         }
         viewModelScope.launch { sends.sent.collect { state.update(::withOutbox) } }
+        // This seat's auto-restarts, drawn in its transcript at their time.
         viewModelScope.launch {
             app.restarts.events.collect { all ->
-                val auto = all.lastOrNull { it.isAuto && it.finished && (it.sessionId == seatId || it.newSessionId == seatId) }
-                if (auto != state.value.autoRestart) state.update { it.copy(autoRestart = auto) }
+                val marks = restartMarkers(all, seatId)
+                if (marks != feed.markers) {
+                    feed.markers = marks
+                    publish()
+                }
             }
         }
         viewModelScope.launch {
@@ -226,9 +229,6 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
      * ends. A seat that cannot take it now holds it in the Outbox (core's Sends).
      */
     fun send(text: String) = deliver(text, interrupt = false)
-
-    /** Send now: as [send], and the seat interrupts main's running turn to run it at once. */
-    fun sendNow(text: String) = deliver(text, interrupt = true)
 
     private fun deliver(text: String, interrupt: Boolean) {
         if (text.isBlank()) return
@@ -485,6 +485,23 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
 
     fun dismissNotice() = state.update { it.copy(notice = null) }
 
+    /**
+     * A queued row's Send now. Held in this app: deliver it now, interrupting
+     * the running turn. In Claude's queue (or just sent): interrupt the running
+     * turn, and Claude runs its queue in order.
+     */
+    fun sendNowRow(row: OutboxRow) {
+        val held = row.heldId
+        if (held != null) forceSend(held, interrupt = true) else interrupt()
+    }
+
+    /** A queued row's remove: cancels a held message; one in Claude's queue cannot be taken back, so say so. */
+    fun removeRow(row: OutboxRow) {
+        val held = row.heldId
+        if (held != null && row.cancellable) unqueue(held)
+        else state.update { it.copy(notice = CANNOT_TAKE_BACK) }
+    }
+
     private fun cast(event: String, payload: JsonObject, okNotice: String?): Boolean {
         val sent = channel.cast(event, payload)
         state.update { it.copy(notice = if (sent) okNotice else "Not connected — $event not sent") }
@@ -498,12 +515,7 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
 
 private const val RESTART_WAIT_MS = 5 * 60_000L
 
-/** A finished auto-restart, in a line: "Auto-restarted on 2.1.300", or how it ended and why. */
-internal fun autoRestartLine(e: SeatRestartEvent): String = when (e.outcome) {
-    "restarted", "adopted" -> "Auto-restarted" + (e.newVersion?.let { " on $it" } ?: "")
-    "skipped" -> "Auto-restart skipped: " + (e.reason ?: "the machine skipped it")
-    else -> "Auto-" + restartOutcome(e).replaceFirstChar { it.lowercase() }
-}
+internal const val CANNOT_TAKE_BACK = "Already in Claude's queue: Claude Code cannot take back a queued message"
 
 /** What a finished restart did, in a line: "Restarted on 2.1.296", "Adopted into a tmux seat", or why not. */
 internal fun restartOutcome(e: SeatRestartEvent): String = when (e.outcome) {
