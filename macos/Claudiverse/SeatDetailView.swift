@@ -123,13 +123,6 @@ struct SeatDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 12).padding(.vertical, 4)
             }
-            if let auto = RestartWording.latestAuto(app.restartEvents, seat: seatId) {
-                Text(RestartWording.autoOutcome(auto))
-                    .font(.caption).foregroundStyle(auto.outcome == "failed" ? Theme.bad : .secondary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 12).padding(.vertical, 4)
-            }
             if !s.outbox.isEmpty { OutboxPanel(rows: s.outbox, session: model.session) }
             if let notice = s.notice {
                 HStack {
@@ -230,8 +223,7 @@ struct Composer: View {
             HStack(alignment: .bottom, spacing: 8) {
                 Button { picking = true } label: { Image(systemName: "paperclip") }
                     .buttonStyle(.borderless).help("Attach files (or paste them)").disabled(state.uploading)
-                ComposerField(text: draft, height: $height, onSend: { send(now: false) }, onSendNow: { send(now: true) },
-                              onPasteFiles: { addAttachments($0) })
+                ComposerField(text: draft, height: $height, onSend: send, onPasteFiles: { addAttachments($0) })
                     .frame(height: height)
                     .overlay(alignment: .topLeading) {
                         if draft.wrappedValue.isEmpty {
@@ -241,15 +233,8 @@ struct Composer: View {
                 if state.sending || state.uploading {
                     ProgressView().controlSize(.small)
                 } else {
-                    if isWorking {
-                        Button { send(now: true) } label: { Image(systemName: "bolt.circle.fill").font(.title2) }
-                            .buttonStyle(.borderless).disabled(!canSend || !attachments.isEmpty)
-                            .help(attachments.isEmpty ? "Send now (⌘⇧Return): stop the running turn and start on this"
-                                                      : "Send now takes text only; files go with Send")
-                    }
-                    Button { send(now: false) } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
+                    Button(action: send) { Image(systemName: "arrow.up.circle.fill").font(.title2) }
                         .buttonStyle(.borderless).disabled(!canSend)
-                        .help(isWorking ? "Send (Return): runs when the current turn ends" : "Send (Return)")
                 }
             }
         }
@@ -277,19 +262,16 @@ struct Composer: View {
     private var text: String { draft.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var canSend: Bool { !text.isEmpty || !attachments.isEmpty }
 
-    /// Mid-turn: Send waits for the turn to end; Send now interrupts it.
-    private var isWorking: Bool { state.live?.idle?.boolValue == false }
-
     private var placeholder: String {
-        isWorking ? "Message (runs when this turn ends; ⌘⇧Return to interrupt)" : "Message"
+        if state.live?.idle?.boolValue == false || !state.outbox.isEmpty { return "Message (queued until the seat is idle)" }
+        return "Message"
     }
 
-    private func send(now: Bool) {
+    private func send() {
         guard canSend, !state.uploading else { return }
-        // Send now carries text only: files go with a plain send.
-        if now && !attachments.isEmpty { return }
         if attachments.isEmpty {
-            if now { session.sendNow(text: text) } else { session.send(text: text) }
+            // Into Claude's own queue: it runs when the current turn ends.
+            session.send(text: text)
         } else {
             let files = attachments.map { fileUpload(path: $0.path, contentType: UTType(filenameExtension: $0.pathExtension)?.preferredMIMEType) }
             session.sendFiles(files: files, note: text)
@@ -327,14 +309,14 @@ private struct AttachmentStrip: View {
     }
 }
 
-/// This seat's messages waiting for it to go idle.
 /**
- * The seat's Outbox: what Claude will run next, in run order (core's
- * outbox). Claude's own queue first ("in Claude's queue", or "interrupting…"
- * while a Send now stops the turn), which cannot be taken back; then
- * messages sent but not yet listed by the seat; then messages held in this
- * app (the seat offline, or a send that failed), which can be sent now or
- * cancelled.
+ * This seat's messages waiting for it to go idle, drawn as they always were:
+ * Send now and a trash can on each. Underneath it is core's outbox, in run
+ * order: Claude's own queue, messages sent but not yet listed by the seat,
+ * then messages held in this app (the seat offline, or a send that failed).
+ * Send now on a held one delivers it interrupting the turn; on any other it
+ * interrupts the turn, and Claude runs its queue in order. Only a held one
+ * can be cancelled: Claude Code cannot take back a message in its queue.
  */
 struct OutboxPanel: View {
     let rows: [OutboxRow]
@@ -343,40 +325,38 @@ struct OutboxPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(rows, id: \.key) { row in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Image(systemName: Self.icon(row)).foregroundStyle(Self.color(row)).frame(width: 14)
+                HStack(alignment: .firstTextBaseline) {
+                    Image(systemName: "clock").foregroundStyle(Theme.busy)
                     Text(row.text).lineLimit(2).font(.callout)
-                    Spacer(minLength: 8)
-                    Text(row.label).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    if let id = row.heldId?.int64Value {
-                        // Send: into Claude's queue (one held as Send now still interrupts); Send Now: interrupts the turn.
-                        Button("Send") { session.forceSend(id: id, interrupt: false) }
-                            .controlSize(.small).help("Send it now, to run when the current turn ends")
-                        Button("Send Now") { session.forceSend(id: id, interrupt: true) }
-                            .controlSize(.small).help("Send it now, interrupting the running turn")
-                        Button { session.unqueue(id: id) } label: { Image(systemName: "trash") }
-                            .buttonStyle(.borderless).help("Cancel it")
-                    }
+                    Spacer()
+                    Button("Send now") { sendNow(row) }.help(Self.sendNowHelp(row))
+                    Button { if let id = row.heldId?.int64Value { session.unqueue(id: id) } } label: { Image(systemName: "trash") }
+                        .buttonStyle(.borderless)
+                        .disabled(!Self.canCancel(row))
+                        .help(Self.canCancel(row) ? "" : Self.notCancellable)
                 }
-                .help(row.cancellable ? "" : "Claude Code cannot take back a message in its queue: it runs when its turn comes")
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(Theme.busy.opacity(0.12))
     }
 
-    static func icon(_ row: OutboxRow) -> String {
-        if row.interrupting { return "bolt.fill" }
-        switch row.kind {
-        case .queued: return "text.line.first.and.arrowtriangle.forward"
-        case .sent: return "paperplane"
-        default: return "clock"
+    private func sendNow(_ row: OutboxRow) {
+        if let id = row.heldId?.int64Value {
+            session.forceSend(id: id, interrupt: true)
+        } else {
+            _ = session.interrupt()
         }
     }
 
-    static func color(_ row: OutboxRow) -> Color {
-        if row.interrupting { return Theme.attention }
-        return row.kind == .held ? Theme.busy : .secondary
+    static let notCancellable = "Claude Code cannot take back a message in its queue"
+
+    /// Only a message still held in this app can be cancelled.
+    static func canCancel(_ row: OutboxRow) -> Bool { row.heldId != nil && row.cancellable }
+
+    static func sendNowHelp(_ row: OutboxRow) -> String {
+        row.heldId != nil ? "Deliver it now, interrupting the running turn"
+                          : "Interrupt the running turn: Claude then runs its queue, this one in turn"
     }
 }
 

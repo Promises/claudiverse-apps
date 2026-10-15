@@ -88,17 +88,6 @@ final class ComposerTests: XCTestCase {
         XCTAssertEqual(view.string, "line", "Return does not also type a new line")
     }
 
-    /// ⌘⇧Return sends now (interrupting the turn), not a plain send.
-    func testCommandShiftReturnSendsNow() {
-        var sends = 0, now = 0
-        let view = textView { sends += 1 }
-        view.onSendNow = { now += 1 }
-        view.keyDown(with: returnKey([.command, .shift]))
-        XCTAssertEqual(now, 1)
-        XCTAssertEqual(sends, 0)
-        XCTAssertEqual(view.string, "line")
-    }
-
     func testShiftAndOptionReturnStartANewLine() {
         var sends = 0
         for modifiers in [NSEvent.ModifierFlags.shift, .option] {
