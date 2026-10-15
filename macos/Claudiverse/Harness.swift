@@ -17,10 +17,10 @@ import UserNotifications
  *   harness.sh '{"cmd":"state"}'
  *   harness.sh '{"cmd":"select","seat":204013}'
  *
- * Commands: state, windows, section {name}, select {seat}, board {fleet},
+ * Commands: state, windows {onscreen?}, section {name}, select {seat}, board {fleet},
  * profile {id} (open it in the Profiles section; {"new": true} for a new one),
  * adopt {seat} (open the Adopt sheet for it),
- * window {seat}, send {seat, text}, reveal {text} (scroll open transcripts to
+ * window {seat}, send {seat, text, now?}, reveal {text} (scroll open transcripts to
  * the first message containing it), preview {text, image?} (a window drawing that
  * Markdown as Claude's and the operator's bubbles; image: a server file path,
  * drawn in the operator's bubble as a stored image), notify {title, body}, log (core's last
@@ -137,6 +137,12 @@ enum Harness {
                 "queued": model.queued.count,
             ])
         case "windows":
+            // onscreen: true first moves a window left on a display that is gone back onto the main screen.
+            if json["onscreen"] as? Bool == true, let screen = NSScreen.main?.visibleFrame {
+                for w in NSApp.windows where w.isVisible && w.level == .normal && !screen.intersects(w.frame) {
+                    w.setFrameOrigin(NSPoint(x: screen.minX, y: screen.maxY - w.frame.height))
+                }
+            }
             return reply(["windows": NSApp.windows.filter { $0.isVisible && $0.level == .normal }.map { ["id": $0.windowNumber, "title": $0.title, "key": $0.isKeyWindow, "frame": NSStringFromRect($0.frame), "occluded": !$0.occlusionState.contains(.visible), "inWindowsMenu": !$0.isExcludedFromWindowsMenu, "class": String(describing: type(of: $0)), "tabbing": $0.tabbingIdentifier] }])
         case "section":
             guard let name = json["name"] as? String, let section = AppModel.Section.allCases.first(where: { $0.rawValue.lowercased() == name.lowercased() }) else {
@@ -173,17 +179,18 @@ enum Harness {
             return reply(["ok": true])
         case "send":
             guard let seat = seatArg(), let text = json["text"] as? String, !text.isEmpty else { return reply(["error": "seat and text"]) }
-            // The app's own send: straight to an idle seat, queued for a busy one.
+            // The app's own send: into Claude's queue, or with now: true, interrupting the running turn.
+            let now = json["now"] as? Bool == true
             let session = model.client.seat(seatId: seat)
             sending.append(session)
             Task {
                 try? await session.refreshSeat()
-                session.send(text: text)
+                if now { session.sendNow(text: text) } else { session.send(text: text) }
                 try? await Task.sleep(for: .seconds(30))
                 session.close()
                 sending.removeAll { $0 === session }
             }
-            return reply(["ok": true, "note": "sent through the app's send path; it queues if the seat is busy"])
+            return reply(["ok": true, "note": now ? "sent now: it interrupts a running turn" : "sent: it runs when the current turn ends"])
         case "reveal":
             guard let text = json["text"] as? String, !text.isEmpty else { return reply(["error": "text: what the message contains"]) }
             NotificationCenter.default.post(name: reveal, object: text)
@@ -254,6 +261,12 @@ enum Harness {
                 "found": found,
                 "joined": s.joined,
                 "mainItems": s.items.count,
+                "working": s.live?.idle?.boolValue == false,
+                // The Outbox as OutboxPanel draws it: Claude's queue, sent, held.
+                "outbox": s.outbox.map { r in
+                    ["kind": "\(r.kind)", "text": String(r.text.prefix(80)), "label": r.label, "cancellable": r.cancellable,
+                     "interrupting": r.interrupting] as [String: Any]
+                },
                 "backgroundRunning": s.seat?.backgroundRunning ?? 0,
                 "background": s.backgroundTasks.map { t in
                     ["id": t.id, "type": t.type, "status": t.status, "label": t.label, "command": t.command ?? "",
