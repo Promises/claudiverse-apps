@@ -246,7 +246,10 @@ enum Harness {
                 return reply(["ok": true])
             }
             guard let session = inspecting[seat] else {
-                inspecting[seat] = model.client.seat(seatId: seat)
+                let session = model.client.seat(seatId: seat)
+                // Polled as an open seat screen polls it, so "working" follows the seat.
+                session.setWatched(on: true)
+                inspecting[seat] = session
                 return reply(["joining": true])
             }
             let s = session.ui.value
