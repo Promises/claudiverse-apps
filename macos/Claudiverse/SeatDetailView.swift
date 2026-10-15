@@ -342,6 +342,9 @@ struct OutboxPanel: View {
                     Spacer(minLength: 8)
                     Text(row.label).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     if let id = row.heldId?.int64Value {
+                        // Send: into Claude's queue (one held as Send now still interrupts); Send Now: interrupts the turn.
+                        Button("Send") { session.forceSend(id: id, interrupt: false) }
+                            .controlSize(.small).help("Send it now, to run when the current turn ends")
                         Button("Send Now") { session.forceSend(id: id, interrupt: true) }
                             .controlSize(.small).help("Send it now, interrupting the running turn")
                         Button { session.unqueue(id: id) } label: { Image(systemName: "trash") }
