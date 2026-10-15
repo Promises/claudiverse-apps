@@ -93,7 +93,7 @@ private fun FleetRow(f: Fleet, global: AutoRestart, saving: Boolean, onSet: (Aut
                 FilterChip(o.enabled == value, { onSet(o.copy(enabled = value)) }, enabled = !saving, label = { Text(label) })
             }
         }
-        MinutesField("Its own idle minutes", o.minIdleS?.let { it / 60 }, enabled = !saving, inheritHint = "${global.minIdleMinutes} (inherited)") { m ->
+        MinutesField("Its own idle minutes", o.minIdleS?.let { it / 60 }, enabled = !saving, inheritHint = "inherits ${global.minIdleMinutes} min") { m ->
             onSet(o.copy(minIdleS = m?.times(60)))
         }
         Text(effectiveLine(f), style = MaterialTheme.typography.bodySmall, color = muted)
@@ -131,9 +131,9 @@ private fun MinutesField(label: String, minutes: Int?, enabled: Boolean, inherit
     OutlinedTextField(
         text, { text = it.filter(Char::isDigit); error = null },
         label = { Text(label) },
-        placeholder = inheritHint?.let { { Text(it) } },
         singleLine = true, enabled = enabled, isError = error != null,
-        supportingText = error?.let { { Text(it) } },
+        // A placeholder only shows while the field has focus: say what empty means below it instead.
+        supportingText = (error ?: inheritHint?.takeIf { text.isEmpty() }?.let { "Empty: $it" })?.let { { Text(it) } },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { commit() }),
         modifier = Modifier.width(260.dp).onFocusChanged { s -> if (focused && !s.isFocused) commit(); focused = s.isFocused },
