@@ -3,8 +3,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /**
- * The message box's text: Return sends, Shift- or Option-Return starts a new
- * line, and pasting an image or files hands them to [onPasteFiles] instead
+ * The message box's text: Return sends, ⌘⇧Return sends now (interrupting
+ * the running turn), Shift- or Option-Return starts a new line, and pasting an image or files hands them to [onPasteFiles] instead
  * of inserting text. It grows with its text up to [maxLines], then scrolls.
  *
  * An NSTextView rather than a TextField: a TextField's field editor takes
@@ -16,6 +16,8 @@ struct ComposerField: NSViewRepresentable {
     @Binding var height: CGFloat
     var maxLines = 10
     let onSend: () -> Void
+    /// ⌘⇧Return: send, interrupting the running turn.
+    var onSendNow: () -> Void = {}
     let onPasteFiles: ([URL]) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -66,6 +68,7 @@ struct ComposerField: NSViewRepresentable {
 
         func attach(_ textView: ComposerTextView) {
             textView.onSend = { [weak self] in self?.parent.onSend() }
+            textView.onSendNow = { [weak self] in self?.parent.onSendNow() }
             textView.onPasteFiles = { [weak self] in self?.parent.onPasteFiles($0) }
             textView.onWidthChange = { [weak self, weak textView] in
                 if let self, let textView { self.measure(textView) }
@@ -93,6 +96,7 @@ struct ComposerField: NSViewRepresentable {
 
 final class ComposerTextView: NSTextView {
     var onSend: (() -> Void)?
+    var onSendNow: (() -> Void)?
     var onPasteFiles: (([URL]) -> Void)?
     var onWidthChange: (() -> Void)?
 
@@ -107,6 +111,10 @@ final class ComposerTextView: NSTextView {
             }
             if modifiers.isEmpty {
                 onSend?()
+                return
+            }
+            if modifiers == [.command, .shift] {
+                onSendNow?()
                 return
             }
         }
