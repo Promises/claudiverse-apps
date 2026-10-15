@@ -25,7 +25,7 @@ import UserNotifications
  * Markdown as Claude's and the operator's bubbles; image: a server file path,
  * drawn in the operator's bubble as a stored image), notify {title, body}, log (core's last
  * 200 log lines), probe (the socket's heartbeat check), restarts (Settings → Restarts
- * in a window), snapshot {path, window?} (a window drawn into a PNG by the app), quit.
+ * in a window), autorestart {minutes} (the global idle minutes; never the switch), snapshot {path, window?} (a window drawn into a PNG by the app), quit.
  * Window ids from "windows" work with `screencapture -l <id>`, and with snapshot.
  */
 @MainActor
@@ -319,6 +319,19 @@ enum Harness {
             window.orderFront(nil)
             previewWindow = window
             return reply(["ok": true, "window": window.windowNumber])
+        case "autorestart":
+            // The global auto-restart's idle minutes, set as the Restarts stepper sets them (never its switch: the
+            // operator turns auto-restart on). The server's answer lands in "log".
+            guard let minutes = (json["minutes"] as? NSNumber)?.intValue else { return reply(["error": "minutes: whole minutes, 1 to 1440"]) }
+            Task {
+                do {
+                    let a = try await model.client.api.setAutoRestart(enabled: nil, minIdleS: KotlinInt(value: AutoRestartWording.seconds(minutes: minutes)))
+                    note("autorestart: enabled \(a.enabled), min_idle_s \(a.minIdleS)")
+                } catch {
+                    note("autorestart: not changed: \(error.message)")
+                }
+            }
+            return reply(["ok": true, "note": "sent; the server's answer is in log"])
         case "snapshot":
             // A window drawn into a PNG at path, by the app itself: works where screencapture cannot (a locked screen,
             // a window on another Space). window: a number from "windows"; the frontmost normal window when left out.
