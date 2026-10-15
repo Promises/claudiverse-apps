@@ -92,6 +92,8 @@ data class SeatUiState(
     val agentThreads: Map<String, Transcript> = emptyMap(),
     /** What the seat runs in the background (shells, monitors, subagents, workflows), as it last reported. */
     val backgroundTasks: List<BackgroundTask> = emptyList(),
+    /** The server's latest finished auto-restart of this seat since the app started; null when none. */
+    val autoRestart: SeatRestartEvent? = null,
 )
 
 /**
@@ -153,6 +155,12 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
             app.outbox.items.collect { all -> state.update { withOutbox(it.copy(queued = all.filter { q -> q.seatId == seatId })) } }
         }
         viewModelScope.launch { sends.sent.collect { state.update(::withOutbox) } }
+        viewModelScope.launch {
+            app.restarts.events.collect { all ->
+                val auto = all.lastOrNull { it.isAuto && it.finished && (it.sessionId == seatId || it.newSessionId == seatId) }
+                if (auto != state.value.autoRestart) state.update { it.copy(autoRestart = auto) }
+            }
+        }
         viewModelScope.launch {
             // Seat status is polled only while the screen is collecting it.
             state.subscriptionCount.map { it > 0 }.distinctUntilChanged().collectLatest { watched ->
@@ -489,6 +497,13 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
 }
 
 private const val RESTART_WAIT_MS = 5 * 60_000L
+
+/** A finished auto-restart, in a line: "Auto-restarted on 2.1.300", or how it ended and why. */
+internal fun autoRestartLine(e: SeatRestartEvent): String = when (e.outcome) {
+    "restarted", "adopted" -> "Auto-restarted" + (e.newVersion?.let { " on $it" } ?: "")
+    "skipped" -> "Auto-restart skipped: " + (e.reason ?: "the machine skipped it")
+    else -> "Auto-" + restartOutcome(e).replaceFirstChar { it.lowercase() }
+}
 
 /** What a finished restart did, in a line: "Restarted on 2.1.296", "Adopted into a tmux seat", or why not. */
 internal fun restartOutcome(e: SeatRestartEvent): String = when (e.outcome) {

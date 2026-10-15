@@ -120,7 +120,12 @@ data class SeatRestartEvent(
     val note: String?,
     val restartId: String?,
     val batchId: String?,
+    /** Who started it: "auto" for the server's auto-restart of an idle seat; null or anything else, a person. */
+    val origin: String? = null,
 ) {
+    /** Started by the server's auto-restart, not by a person. */
+    val isAuto: Boolean get() = origin == AUTO
+
     /** Done, one way or the other: no later event for this seat in this restart. */
     val finished: Boolean get() = outcome in FINISHED
 
@@ -132,6 +137,7 @@ data class SeatRestartEvent(
 
     companion object {
         val FINISHED = setOf("restarted", "adopted", "skipped", "failed")
+        const val AUTO = "auto"
 
         fun from(o: JsonObject) = SeatRestartEvent(
             sessionId = o.requireLong("session_id"),
@@ -147,13 +153,23 @@ data class SeatRestartEvent(
             note = o.str("note"),
             restartId = o.str("restart_id"),
             batchId = o.str("batch_id"),
+            origin = o.str("origin"),
         )
     }
 }
 
 /** A batch's own state ([state]: started or done) with [total] seats and its counts by outcome (restarted, adopted, skipped, failed). */
-data class RestartBatchEvent(val batchId: String, val host: String?, val state: String, val total: Int?, val counts: Map<String, Int>) {
+data class RestartBatchEvent(
+    val batchId: String,
+    val host: String?,
+    val state: String,
+    val total: Int?,
+    val counts: Map<String, Int>,
+    /** "auto" for a batch the server's auto-restart started. */
+    val origin: String? = null,
+) {
     val done: Boolean get() = state == "done"
+    val isAuto: Boolean get() = origin == SeatRestartEvent.AUTO
 
     companion object {
         fun from(o: JsonObject): RestartBatchEvent {
@@ -164,6 +180,7 @@ data class RestartBatchEvent(val batchId: String, val host: String?, val state: 
                 state = o.str("state") ?: "unknown",
                 total = o.int("total"),
                 counts = counts?.keys?.mapNotNull { k -> counts.int(k)?.let { k to it } }?.toMap().orEmpty(),
+                origin = o.str("origin"),
             )
         }
     }

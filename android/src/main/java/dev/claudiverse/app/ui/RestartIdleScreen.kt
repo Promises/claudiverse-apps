@@ -39,6 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.claudiverse.app.spawn.RestartIdleState
+import dev.claudiverse.app.seat.autoRestartLine
+import dev.claudiverse.app.seat.restartOutcome
 import dev.claudiverse.app.spawn.RestartIdleViewModel
 import dev.claudiverse.core.RestartPlan
 import dev.claudiverse.core.SeatRestartEvent
@@ -69,6 +71,11 @@ fun RestartIdleScreen(vm: RestartIdleViewModel) {
                     else -> items(ui.plan, key = { it.sessionId }) { p ->
                         PlanRow(p, selected = p.sessionId in ui.selected, onToggle = { vm.toggleSeat(p.sessionId) })
                     }
+                }
+                if (ui.recent.isNotEmpty()) {
+                    item { HorizontalDivider() }
+                    item { Text("Recent restarts", style = MaterialTheme.typography.titleSmall) }
+                    items(ui.recent, key = { e -> "recent:${e.restartId ?: ""}:${e.sessionId}:${e.outcome}" }) { e -> RecentRow(e) }
                 }
             } else {
                 item { BatchSummary(ui) }
@@ -193,6 +200,21 @@ private fun BatchSummary(ui: RestartIdleState) {
         }
         b?.counts?.filterValues { it > 0 }?.takeIf { it.isNotEmpty() }?.let { counts ->
             Text(counts.entries.joinToString(" · ") { (k, v) -> "$v $k" }, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+/** A finished restart: the seat, who started it (the server's auto-restart or a person), and how it ended. */
+@Composable
+private fun RecentRow(e: SeatRestartEvent) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(e.title ?: "Seat ${e.sessionId}", style = MaterialTheme.typography.titleSmall)
+            if (e.isAuto) Pill("auto", StatusColors.info)
+        }
+        SelectionContainer {
+            Text(if (e.isAuto) autoRestartLine(e) else restartOutcome(e), style = MaterialTheme.typography.bodySmall,
+                color = if (e.outcome == "failed") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

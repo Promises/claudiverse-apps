@@ -14,7 +14,12 @@ package dev.claudiverse.core
  */
 data class ModelChoice(val label: String, val id: String, val oneM: Boolean, val since: String? = null) {
     /** Whether Claude Code [version] knows this model. An unknown version counts as too old for a model with a [since]. */
-    fun knownBy(version: String?): Boolean = since == null || (version != null && versionAtLeast(version, since))
+    fun knownBy(version: String?): Boolean {
+        if (since == null) return true
+        // A seat's client_version carries its mod after the number: compare the number alone.
+        val v = ClientVersion.parse(version).claudeCode ?: return false
+        return versionAtLeast(v, since)
+    }
 }
 
 /** An id a seat command takes, and how it is shown. */

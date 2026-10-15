@@ -9,6 +9,7 @@ import dev.claudiverse.core.RestartBatchEvent
 import dev.claudiverse.core.RestartOptions
 import dev.claudiverse.core.RestartPlan
 import dev.claudiverse.core.RestartRow
+import dev.claudiverse.core.SeatRestartEvent
 import dev.claudiverse.core.foldRestart
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -37,6 +38,8 @@ data class RestartIdleState(
     val rows: List<RestartRow> = emptyList(),
     val batch: RestartBatchEvent? = null,
     val starting: Boolean = false,
+    /** Restarts finished since the app started, newest first: the operator's and the server's auto-restarts. */
+    val recent: List<SeatRestartEvent> = emptyList(),
 ) {
     val selectedPlans: List<RestartPlan> get() = plan.filter { it.sessionId in selected }
     val protectedSelected: Int get() = selectedPlans.count { it.needsProtectedConfirm }
@@ -60,6 +63,11 @@ class RestartIdleViewModel(private val app: AppContainer) : ViewModel() {
             val fleets = runCatching { app.api.fleets() }.getOrDefault(emptyList())
             state.update { it.copy(hosts = hosts, fleets = fleets, excludedFleets = fleets.filter { f -> f.paused }.map { f -> f.fleet }.toSet()) }
             replan()
+        }
+        viewModelScope.launch {
+            app.restarts.events.collect { all ->
+                state.update { it.copy(recent = all.filter { e -> e.finished }.takeLast(RECENT).asReversed()) }
+            }
         }
         // A started batch: its seats with their latest outcome, and its own state.
         viewModelScope.launch {
@@ -139,6 +147,8 @@ class RestartIdleViewModel(private val app: AppContainer) : ViewModel() {
         excludePaused = false,
     )
 }
+
+private const val RECENT = 20
 
 /** The seats a plan restarts unless the operator changes it: every one it takes, protected seats left out. */
 internal fun defaultSelection(plan: List<RestartPlan>): Set<Long> =

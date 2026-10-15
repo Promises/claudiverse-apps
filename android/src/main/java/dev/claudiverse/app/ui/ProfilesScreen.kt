@@ -293,7 +293,7 @@ private fun LaunchSection(ui: ProfileEditorState, vm: ProfileEditorViewModel, ca
     val d = ui.draft
     val host = ui.host
     Section("Launch") {
-        MachineChoice("Runtime", d.runtime, host?.runtimes?.map { r -> r.name to (r.name + (r.version?.let { " $it" } ?: "")) }.orEmpty(), "runtimes", ui) { v ->
+        MachineChoice("Runtime", d.runtime, host?.runtimes?.map { r -> r.name to (r.name + (r.versionLabel?.let { " $it" } ?: "")) }.orEmpty(), "runtimes", ui) { v ->
             vm.edit("runtime") { it.copy(runtime = v) }
         }
         Errors(ui, "runtime")

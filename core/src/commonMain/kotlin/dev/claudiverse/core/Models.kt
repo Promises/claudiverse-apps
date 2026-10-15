@@ -211,11 +211,11 @@ data class Host(
             remoteRoots = o.flag("remote_roots"),
             version = o.str("version"),
             modes = o.array("modes").strings(),
-            runtimes = o.array("runtimes").objects().mapNotNull { r -> r.str("name")?.let { HostRuntime(it, r.str("version")) } },
+            runtimes = o.array("runtimes").objects().mapNotNull { r -> r.str("name")?.let { HostRuntime(it, r.str("version"), r.str("mod_version")) } },
             mcp = o.array("mcp").strings(),
             lastSeenAt = o.str("last_seen_at"),
             spawn = o.obj("spawn")?.let {
-                SpawnChoices(it.array("options").strings(), it.flag("pool_only"), it.flag("pooled"), it.str("runtime"), it.str("version"))
+                SpawnChoices(it.array("options").strings(), it.flag("pool_only"), it.flag("pooled"), it.str("runtime"), it.str("version"), it.str("mod_version"))
             },
         )
     }
@@ -233,13 +233,48 @@ data class SpawnChoices(
     /** The runtime a plain spawn runs, and its Claude Code version ("2.1.296"), when the agent says. */
     val runtime: String? = null,
     val version: String? = null,
+    /** The claudiverse mod that runtime loads ("0.12.1"), when the agent says. */
+    val modVersion: String? = null,
 ) {
     val offersModel: Boolean get() = "model" in options
     val offersPool: Boolean get() = "pooled" in options
 }
 
-/** A runtime name in a machine's agent config, with the Claude Code version it runs. */
-data class HostRuntime(val name: String, val version: String?)
+/** A runtime name in a machine's agent config, with the Claude Code version it runs and the mod it loads (null for a stock runtime, or an older agent). */
+data class HostRuntime(val name: String, val version: String?, val modVersion: String? = null) {
+    /** "2.1.300 · mod 0.12.1", "2.1.300", or null when the agent reports neither. */
+    val versionLabel: String? get() = versionLabel(version, modVersion)
+}
+
+/** A Claude Code version with its mod, as the apps show it: "2.1.300 · mod 0.12.1". */
+fun versionLabel(claudeCode: String?, mod: String?): String? =
+    listOfNotNull(claudeCode, mod?.let { "mod $it" }).joinToString(" · ").ifEmpty { null }
+
+/**
+ * A seat's client_version, as its sidecar reports it: "2.1.300 (Claude Code)",
+ * "2.1.300 (Claude Code) [claudiverse-mod]" before mod 0.12.1, and
+ * "2.1.300 (Claude Code) [claudiverse-mod 0.12.1]" since.
+ */
+data class ClientVersion(
+    /** Claude Code's own version, "2.1.300"; null when the string is empty. */
+    val claudeCode: String?,
+    /** Runs the claudiverse mod. */
+    val modded: Boolean,
+    /** The mod's version, from mod 0.12.1 on; null before, and for a stock seat. */
+    val mod: String?,
+) {
+    val label: String? get() = if (modded && mod == null) claudeCode?.let { "$it · mod" } else versionLabel(claudeCode, mod)
+
+    companion object {
+        private val MOD = Regex("""\[claudiverse-mod(?:\s+([^\]\s]+))?\s*]""")
+
+        fun parse(s: String?): ClientVersion {
+            val v = s?.trim().orEmpty()
+            val mod = MOD.find(v)
+            return ClientVersion(v.substringBefore(' ').ifEmpty { null }, mod != null, mod?.groupValues?.get(1)?.ifEmpty { null })
+        }
+    }
+}
 
 /** A folder past seats on a host worked in, newest first. */
 data class RecentDir(val path: String, val lastUsedAt: String?, val seatsRunning: Int) {

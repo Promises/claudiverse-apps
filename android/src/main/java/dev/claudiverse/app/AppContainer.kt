@@ -88,6 +88,9 @@ class AppContainer private constructor(context: Context) {
 
     init {
         autoVpn.start()
+        // Restarts are followed for as long as the app runs: the server's auto-restarts
+        // happen with no screen asking, and a seat shows its latest one when opened.
+        watchRestarts()
         // A returned network (Wi-Fi back, the tunnel up) reconnects at once
         // instead of waiting out the socket's backoff.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {

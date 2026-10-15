@@ -96,6 +96,7 @@ import dev.claudiverse.core.clipboardText
 import dev.claudiverse.core.composeAnswer
 import dev.claudiverse.app.seat.SeatUiState
 import dev.claudiverse.app.seat.SeatViewModel
+import dev.claudiverse.app.seat.autoRestartLine
 import dev.claudiverse.core.Timeline
 import dev.claudiverse.core.BackgroundTask
 import dev.claudiverse.core.RestartPlan
@@ -264,6 +265,11 @@ fun SeatScreen(vm: SeatViewModel, showInfo: Boolean, onShowInfo: (Boolean) -> Un
                     TextButton(onClick = vm::dismissNotice) { Text("OK") }
                 }
             }
+        }
+        ui.autoRestart?.let { e ->
+            Text(autoRestartLine(e), style = MaterialTheme.typography.bodySmall,
+                color = if (e.outcome == "failed") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp))
         }
         agent?.let {
             Text("${it.label}: its own thread. A message here goes to main; sending to an agent comes later.",
