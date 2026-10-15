@@ -24,8 +24,9 @@ import UserNotifications
  * the first message containing it), preview {text, image?} (a window drawing that
  * Markdown as Claude's and the operator's bubbles; image: a server file path,
  * drawn in the operator's bubble as a stored image), notify {title, body}, log (core's last
- * 200 log lines), probe (the socket's heartbeat check), quit.
- * Window ids from "windows" work with `screencapture -l <id>`.
+ * 200 log lines), probe (the socket's heartbeat check), restarts (Settings → Restarts
+ * in a window), snapshot {path, window?} (a window drawn into a PNG by the app), quit.
+ * Window ids from "windows" work with `screencapture -l <id>`, and with snapshot.
  */
 @MainActor
 enum Harness {
@@ -307,6 +308,31 @@ enum Harness {
             NSApp.activate()
             window.makeKeyAndOrderFront(nil)
             return reply(["ok": true, "window": window.windowNumber])
+        case "restarts":
+            // Settings → Restarts (auto-restart, global and per fleet) in a window of its own; it reads and writes
+            // the server's real setting, so only look unless a change is meant.
+            let window = previewWindow ?? NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 520),
+                                                   styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.title = "Restarts preview"
+            window.contentView = NSHostingView(rootView: AutoRestartSettings().frame(width: 640, height: 520).environment(model))
+            window.orderFront(nil)
+            previewWindow = window
+            return reply(["ok": true, "window": window.windowNumber])
+        case "snapshot":
+            // A window drawn into a PNG at path, by the app itself: works where screencapture cannot (a locked screen,
+            // a window on another Space). window: a number from "windows"; the frontmost normal window when left out.
+            guard let path = json["path"] as? String else { return reply(["error": "path: where to write the PNG"]) }
+            let window = (json["window"] as? NSNumber).flatMap { n in NSApp.windows.first { $0.windowNumber == n.intValue } }
+                ?? NSApp.windows.first { $0.isVisible && $0.level == .normal }
+            guard let view = window?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+                return reply(["error": "no window"])
+            }
+            view.cacheDisplay(in: view.bounds, to: rep)
+            guard let png = rep.representation(using: .png, properties: [:]), (try? png.write(to: URL(fileURLWithPath: path))) != nil else {
+                return reply(["error": "not written: \(path)"])
+            }
+            return reply(["ok": true, "path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh])
         case "restartsheet":
             // Restart idle seats, for one machine (host) or every machine; close: true closes it. The sheet only plans
             // (a dry run) until someone confirms in it.
