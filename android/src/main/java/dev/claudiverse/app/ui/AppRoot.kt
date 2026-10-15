@@ -2,6 +2,7 @@ package dev.claudiverse.app.ui
 
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Schedule
 import dev.claudiverse.app.profiles.ProfileEditorViewModel
 import dev.claudiverse.app.profiles.ProfilesViewModel
 import android.net.Uri
@@ -26,6 +27,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.rememberCoroutineScope
 import dev.claudiverse.app.spawn.NewSeatViewModel
+import dev.claudiverse.app.spawn.AutoRestartViewModel
 import dev.claudiverse.app.spawn.RestartIdleViewModel
 import dev.claudiverse.core.SpawnNotice
 import kotlinx.coroutines.launch
@@ -170,6 +172,9 @@ fun AppRoot(app: AppContainer, openSeat: MutableStateFlow<SeatLink?>, openReauth
                     if (route == "seats") IconButton(onClick = { nav.navigate("restart-idle") }) {
                         Icon(Icons.Filled.RestartAlt, contentDescription = "Restart idle seats")
                     }
+                    if (route == "restart-idle") IconButton(onClick = { nav.navigate("auto-restart") }) {
+                        Icon(Icons.Filled.Schedule, contentDescription = "Auto-restart")
+                    }
                     if (route == "seats") IconButton(onClick = { nav.navigate("profiles") }) {
                         Icon(Icons.Filled.Badge, contentDescription = "Profiles")
                     }
@@ -219,7 +224,8 @@ fun AppRoot(app: AppContainer, openSeat: MutableStateFlow<SeatLink?>, openReauth
                     onCreated = { newId -> nav.navigate("profile/$newId") { popUpTo("profile/{id}") { inclusive = true } } },
                 )
             }
-            composable("restart-idle") { RestartIdleScreen(viewModel { RestartIdleViewModel(app) }) }
+            composable("restart-idle") { RestartIdleScreen(viewModel { RestartIdleViewModel(app) }, onAutoRestart = { nav.navigate("auto-restart") }) }
+            composable("auto-restart") { AutoRestartScreen(viewModel { AutoRestartViewModel(app) }) }
             composable("new-seat") {
                 NewSeatScreen(viewModel { NewSeatViewModel(app) }, onClose = { nav.popBackStack() })
             }
@@ -326,7 +332,7 @@ private fun androidx.navigation.NavHostController.navigateTab(route: String) = n
 /** The tab a route belongs to, so a detail screen keeps its tab lit. */
 private fun tabFor(route: String?): String? = when {
     route == null -> null
-    route.startsWith("seat/") || route == "profiles" || route.startsWith("profile/") || route == "restart-idle" -> "seats"
+    route.startsWith("seat/") || route == "profiles" || route.startsWith("profile/") || route == "restart-idle" || route == "auto-restart" -> "seats"
     route.startsWith("channel/") || route.startsWith("thread/") -> "forum"
     else -> route
 }
@@ -338,6 +344,7 @@ private fun titleFor(route: String?, args: android.os.Bundle?): String = when {
     route.startsWith("thread/") -> "Thread #" + (args?.getLong("id") ?: "")
     route == "profiles" -> "Profiles"
     route == "restart-idle" -> "Restart idle seats"
+    route == "auto-restart" -> "Auto-restart"
     route.startsWith("profile/") -> if (args?.getLong("id") == NEW_PROFILE) "New profile" else "Profile"
     else -> TABS.firstOrNull { it.route == route }?.label ?: "Claudiverse"
 }

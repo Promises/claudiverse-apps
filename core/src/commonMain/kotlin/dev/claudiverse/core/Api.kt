@@ -386,9 +386,13 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
     @Throws(Exception::class)
     suspend fun fleets(): List<Fleet> = getList(listOf("fleets"), "fleets").map(Fleet::from)
 
-    /** The global auto-restart setting (GET /api/settings); off and 300 s from a server that has none stored. */
+    /** The global auto-restart setting (GET /api/settings): off and 300 s when none is stored; null from a server without auto-restart (404). */
     @Throws(Exception::class)
-    suspend fun autoRestart(): AutoRestart = AutoRestart.from(get("settings").obj("auto_restart"))
+    suspend fun autoRestart(): AutoRestart? = try {
+        AutoRestart.from(get("settings").obj("auto_restart"))
+    } catch (e: ApiException) {
+        if (e.httpStatus == 404) null else throw e
+    }
 
     /** Change the global auto-restart setting: only the fields given (app token); the reply is the setting as it now is. */
     @Throws(Exception::class)

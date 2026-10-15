@@ -53,7 +53,7 @@ import dev.claudiverse.core.SeatRestartEvent
  * seat's progress as the server works through them one at a time.
  */
 @Composable
-fun RestartIdleScreen(vm: RestartIdleViewModel) {
+fun RestartIdleScreen(vm: RestartIdleViewModel, onAutoRestart: () -> Unit) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     var confirming by remember { mutableStateOf(false) }
     if (confirming) ConfirmRestart(ui, onConfirm = { confirming = false; vm.start() }, onDismiss = { confirming = false })
@@ -61,6 +61,11 @@ fun RestartIdleScreen(vm: RestartIdleViewModel) {
     Column(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (ui.batchId == null) {
+                item {
+                    TextButton(onClick = onAutoRestart, contentPadding = PaddingValues(0.dp)) {
+                        Text("Auto-restart: let the server restart outdated idle seats ›")
+                    }
+                }
                 item { Options(ui, vm) }
                 item { HorizontalDivider() }
                 when {

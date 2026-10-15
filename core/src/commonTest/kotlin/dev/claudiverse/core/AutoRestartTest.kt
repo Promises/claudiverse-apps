@@ -73,6 +73,7 @@ class AutoRestartTest {
     fun theGlobalSettingIsReadAndOnlyGivenFieldsAreSent() = runTest {
         assertEquals(AutoRestart(false, 300), api("""{"auto_restart":{"enabled":false,"min_idle_s":300}}""").autoRestart())
         assertEquals(AutoRestart(false, 300), api("""{}""").autoRestart(), "nothing stored: off, 300 s")
+        assertNull(api("""{"errors":{"detail":"Not Found"}}""", HttpStatusCode.NotFound).autoRestart(), "a server without auto-restart")
         val set = api("""{"auto_restart":{"enabled":true,"min_idle_s":300}}""").setAutoRestart(enabled = true)
         assertEquals(AutoRestart(true, 300), set)
         assertEquals(HttpMethod.Put, requests.last().method)
