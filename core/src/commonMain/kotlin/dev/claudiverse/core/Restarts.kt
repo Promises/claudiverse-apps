@@ -31,10 +31,13 @@ data class RestartPlan(
     val action: String,
     /** Why it is skipped, a sentence for people; null when it is not. */
     val reason: String?,
-    /** The skip's code: busy, background, question, permission, recent_activity, runner, fleet, self, max_seats (the machine could not start it again), not_running, no_machine, offline, up_to_date, not_found, refused. */
+    /** The skip's code: busy, background, question, permission, recent_activity, runner, fleet, self, max_seats (the machine could not start it again), no_target (auto-restart only), not_running, no_machine, offline, up_to_date, not_found, refused. */
     val reasonCode: String? = null,
     val clientVersion: String?,
     val targetVersion: String?,
+    /** The mod the seat runs and the one a restart gives it ("0.12.1"); null for a stock seat or an older server. */
+    val modVersion: String? = null,
+    val targetModVersion: String? = null,
     /** From a dry run the machine looked at: the argument and environment names a restart carries (never values). */
     val argvNames: List<String> = emptyList(),
     val envNames: List<String> = emptyList(),
@@ -68,6 +71,8 @@ data class RestartPlan(
                 reasonCode = o.str("reason_code"),
                 clientVersion = o.str("client_version"),
                 targetVersion = o.str("target_version"),
+                modVersion = o.str("mod_version"),
+                targetModVersion = o.str("target_mod_version"),
                 argvNames = launch?.array("argv").strings(),
                 envNames = launch?.array("env").strings(),
                 isProtected = o.flag("protected"),

@@ -386,6 +386,26 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
     @Throws(Exception::class)
     suspend fun fleets(): List<Fleet> = getList(listOf("fleets"), "fleets").map(Fleet::from)
 
+    /** The global auto-restart setting (GET /api/settings); off and 300 s from a server that has none stored. */
+    @Throws(Exception::class)
+    suspend fun autoRestart(): AutoRestart = AutoRestart.from(get("settings").obj("auto_restart"))
+
+    /** Change the global auto-restart setting: only the fields given (app token); the reply is the setting as it now is. */
+    @Throws(Exception::class)
+    suspend fun setAutoRestart(enabled: Boolean? = null, minIdleS: Int? = null): AutoRestart =
+        AutoRestart.from(call(HttpMethod.Put, listOf("settings"), json = autoRestartBody(enabled, minIdleS)).obj("auto_restart"))
+
+    /**
+     * Set a fleet's auto-restart override as a whole (app token): a null field
+     * inherits the global value, and an empty override clears it. The reply
+     * is the fleet's setting and what now applies.
+     */
+    @Throws(Exception::class)
+    suspend fun setFleetAutoRestart(fleet: String, override: AutoRestartOverride): Pair<AutoRestartOverride?, AutoRestart?> {
+        val o = call(HttpMethod.Patch, listOf("fleets", fleet), json = fleetAutoRestartBody(override))
+        return AutoRestartOverride.from(o.obj("auto_restart")) to o.obj("auto_restart_effective")?.let { AutoRestart.from(it) }
+    }
+
     // --- seat profiles ---
 
     /** Every profile with its derived status. Any token. */

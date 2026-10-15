@@ -202,6 +202,9 @@ data class Host(
     /** What a plain spawn may ask this machine for (host agent 0.13+); null from an older agent. */
     val spawn: SpawnChoices? = null,
 ) {
+    /** The runtime a spawned or restarted seat gets ([SpawnChoices.runtime] among [runtimes]); null when the agent does not say. */
+    val spawnRuntime: HostRuntime? get() = spawn?.runtime?.let { r -> runtimes.firstOrNull { it.name == r } }
+
     companion object {
         fun from(o: JsonObject) = Host(
             name = o.requireStr("name"),
@@ -215,7 +218,7 @@ data class Host(
             mcp = o.array("mcp").strings(),
             lastSeenAt = o.str("last_seen_at"),
             spawn = o.obj("spawn")?.let {
-                SpawnChoices(it.array("options").strings(), it.flag("pool_only"), it.flag("pooled"), it.str("runtime"), it.str("version"), it.str("mod_version"))
+                SpawnChoices(it.array("options").strings(), it.flag("pool_only"), it.flag("pooled"), it.str("runtime"), it.str("version"))
             },
         )
     }
@@ -233,8 +236,6 @@ data class SpawnChoices(
     /** The runtime a plain spawn runs, and its Claude Code version ("2.1.296"), when the agent says. */
     val runtime: String? = null,
     val version: String? = null,
-    /** The claudiverse mod that runtime loads ("0.12.1"), when the agent says. */
-    val modVersion: String? = null,
 ) {
     val offersModel: Boolean get() = "model" in options
     val offersPool: Boolean get() = "pooled" in options
@@ -572,12 +573,18 @@ data class Fleet(
     val runners: List<FleetRunner>,
     val seats: List<FleetSeat>,
     val members: List<FleetMember> = emptyList(),
-    /** Paused by the operator: a batch restart leaves it out by default. */
+    /** Paused by the operator: a batch restart leaves it out by default, and auto-restart never touches it. */
     val paused: Boolean = false,
+    /** The fleet's own auto-restart setting; null when it has none and follows the global one. */
+    val autoRestart: AutoRestartOverride? = null,
+    /** What applies to its seats: the override over the global setting; null from a server without auto-restart. */
+    val autoRestartEffective: AutoRestart? = null,
 ) {
     companion object {
         fun from(o: JsonObject) = Fleet(
             paused = o.flag("paused"),
+            autoRestart = AutoRestartOverride.from(o.obj("auto_restart")),
+            autoRestartEffective = o.obj("auto_restart_effective")?.let { AutoRestart.from(it) },
             fleet = o.requireStr("fleet"),
             runners = o.array("runners").objects().mapNotNull { runCatching { FleetRunner.from(it) }.getOrNull() },
             seats = o.array("seats").objects().mapNotNull { runCatching { FleetSeat.from(it) }.getOrNull() },
