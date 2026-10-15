@@ -435,7 +435,12 @@ data class Incident(val summary: String)
 data class Incidents(val total: Int, val since: String?, val latest: List<Incident>)
 
 /** The result of handing a seat a message: the server says delivered, busy or error. */
-data class SendResult(val status: String, val hint: String?) {
+data class SendResult(
+    val status: String,
+    val hint: String?,
+    /** The id the message carries in the seat's queue ([QueuedPrompt.id]); null from an older server. */
+    val messageId: String? = null,
+) {
     val delivered: Boolean get() = status == "delivered"
 }
 

@@ -178,6 +178,8 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
         when (feed.onEvent(e.event, e.payload)) {
             SeatFeed.Change.TRANSCRIPT -> publish()
             SeatFeed.Change.STREAMING -> state.update { it.copy(streaming = feed.streaming) }
+            // Claude's queue on the seat: shown by the Outbox panel (next commit).
+            SeatFeed.Change.QUEUE -> Unit
             SeatFeed.Change.NONE -> Unit
         }
     }

@@ -7,6 +7,7 @@ import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
+import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -46,7 +47,7 @@ class OutboxTest {
 
     @Test
     fun encodingRoundTrips() {
-        val list = listOf(QueuedMessage(3, 9, "line one\nline two", 42))
+        val list = listOf(QueuedMessage(3, 9, "line one\nline two", 42), QueuedMessage(4, 9, "now", 43, interrupt = true))
         assertEquals(list, Outbox.decode(Outbox.encode(list)))
     }
 
@@ -58,17 +59,17 @@ class OutboxTest {
         assertEquals(emptyList(), Outbox.decode(null))
     }
 
-    /** Busy: held. Idle: sent once and removed, and the store follows. */
+    /** Offline: held. Connected again: sent once into Claude's queue (force), removed, and the store follows. */
     @Test
-    fun aMessageWaitsForIdleThenSendsOnce() = runTest {
-        var idle = false
+    fun aHeldMessageWaitsForItsSeatThenSendsOnceWithForce() = runTest {
+        var connected = false
         val sends = mutableListOf<String>()
         val api = api { request ->
             val body = when {
-                request.method == HttpMethod.Get -> """{"session":{"id":1,"title":"s","status":"running"},"live":{"idle":$idle}}"""
+                request.method == HttpMethod.Get -> """{"session":{"id":1,"title":"s","status":"running"},"live":{"idle":false,"sidecar_connected":$connected}}"""
                 else -> {
-                    sends += request.url.encodedPath
-                    """{"status":"delivered"}"""
+                    sends += (request.body as TextContent).text
+                    """{"status":"delivered","message_id":"m1"}"""
                 }
             }
             respond(body, headers = headersOf(HttpHeaders.ContentType, "application/json"))
@@ -76,17 +77,42 @@ class OutboxTest {
         val store = MemoryStore()
         val outbox = Outbox(store, api, backgroundScope)
 
-        outbox.enqueue(1, "queued while busy")
+        outbox.enqueue(1, "held while offline", interrupt = true)
         runCurrent()
         advanceTimeBy(Outbox.POLL_MS * 2)
         assertTrue(sends.isEmpty())
-        assertTrue(store.json!!.contains("queued while busy"))
+        assertTrue(store.json!!.contains("held while offline"))
+        assertTrue(store.json!!.contains("\"interrupt\":true"), "a held Send now stays a Send now")
 
-        idle = true
+        connected = true
         advanceTimeBy(Outbox.POLL_MS + 1)
-        assertEquals(listOf("/api/notify/send"), sends)
+        assertEquals(1, sends.size)
+        assertTrue(sends.single().contains("\"force\":true") && sends.single().contains("\"interrupt\":true"), sends.single())
         assertEquals(emptyList(), outbox.items.value)
         assertEquals("[]", store.json)
+    }
+
+    /** A server that cannot force answers busy while the seat works: held until it is idle. */
+    @Test
+    fun onAServerWithoutForceAHeldMessageWaitsForIdle() = runTest {
+        var idle = false
+        var delivered = 0
+        val api = api { request ->
+            val body = when {
+                request.method == HttpMethod.Get -> """{"session":{"id":1,"title":"s","status":"running"},"live":{"idle":$idle}}"""
+                idle -> { delivered++; """{"status":"delivered"}""" }
+                else -> """{"status":"busy","hint":"mid-turn"}"""
+            }
+            respond(body, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+        val outbox = Outbox(MemoryStore(), api, backgroundScope)
+        outbox.enqueue(1, "wait")
+        advanceTimeBy(Outbox.POLL_MS * 2)
+        assertEquals(1, outbox.items.value.size)
+        idle = true
+        advanceTimeBy(Outbox.POLL_MS + 1)
+        assertEquals(1, delivered)
+        assertEquals(emptyList(), outbox.items.value)
     }
 
     /** A stopped seat never goes idle: its message stays, and nothing is sent to it. */

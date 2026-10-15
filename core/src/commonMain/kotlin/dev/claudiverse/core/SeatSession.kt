@@ -44,8 +44,12 @@ data class SeatState(
     val effort: String? = null,
     /** True while a file is uploading. */
     val uploading: Boolean = false,
-    /** This seat's messages waiting for it to go idle, oldest first. */
+    /** This seat's messages held in this app (cancellable), oldest first. */
     val queued: List<QueuedMessage> = emptyList(),
+    /** Claude's own queue on the seat, in the seat's order; empty from a seat whose mod does not list it. */
+    val promptQueue: List<QueuedPrompt> = emptyList(),
+    /** The Outbox panel: Claude's queue, sent but not yet listed, then held; see [outboxView]. */
+    val outbox: List<OutboxRow> = emptyList(),
     /** The last thing the server said about a send, a question answer or a permission. */
     val notice: String? = null,
     val loadError: String? = null,
@@ -82,6 +86,7 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
     private val feed = SeatFeed()
     private val feedLock = SynchronizedObject()
     private var fetch: Job? = null
+    private val sends = Sends(client.api, client.outbox, seatId, scope)
 
     init {
         scope.launch { channel.events.collect(::onEvent) }
@@ -96,8 +101,9 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
         scope.launch { channel.error.collect { e -> state.update { it.copy(joinError = e) } } }
         scope.launch { client.socket.connected.collect { c -> state.update { it.copy(socketConnected = c) } } }
         scope.launch {
-            client.outbox.items.collect { all -> state.update { it.copy(queued = all.filter { q -> q.seatId == seatId }) } }
+            client.outbox.items.collect { all -> state.update { withOutbox(it.copy(queued = all.filter { q -> q.seatId == seatId })) } }
         }
+        scope.launch { sends.sent.collect { state.update(::withOutbox) } }
         scope.launch {
             watched.collectLatest { on ->
                 while (on && isActive) {
@@ -162,6 +168,7 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
             when (feed.onEvent(e.event, e.payload)) {
                 SeatFeed.Change.TRANSCRIPT -> publishLocked()
                 SeatFeed.Change.STREAMING -> state.update { it.copy(streaming = feed.streaming) }
+                SeatFeed.Change.QUEUE -> publishQueueLocked()
                 SeatFeed.Change.NONE -> Unit
             }
         }
@@ -175,43 +182,35 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
             it.copy(items = t.items, rows = t.rows, transcriptVersion = it.transcriptVersion + 1, streaming = feed.streaming, effort = t.effort,
                 agents = agents, agentThreads = threads, backgroundTasks = feed.backgroundTasks)
         }
+        publishQueueLocked()
     }
 
+    private fun publishQueueLocked() {
+        val queue = feed.promptQueue
+        sends.onQueue(queue)
+        state.update { withOutbox(it.copy(promptQueue = queue)) }
+    }
+
+    private fun withOutbox(s: SeatState): SeatState = s.copy(outbox = outboxView(s.queued, s.promptQueue, sends.sent.value))
+
     /**
-     * Send now if the seat is idle; otherwise queue it for the next idle. A send
-     * that races the seat into busy is queued too, never dropped.
+     * Send: into Claude's own queue on the seat, to run when the current turn
+     * ends. A seat that cannot take it now holds it in the Outbox ([Sends]).
      */
-    fun send(text: String) {
+    fun send(text: String) = deliver(text, interrupt = false)
+
+    /** Send now: as [send], and the seat interrupts main's running turn to run it at once. */
+    fun sendNow(text: String) = deliver(text, interrupt = true)
+
+    private fun deliver(text: String, interrupt: Boolean) {
         if (text.isBlank()) return
         // Writing to the seat answers its request for the operator.
         client.humanRequests.resolve(seatId)
-        // Queue behind earlier queued messages so order holds.
-        if (state.value.live?.idle == false || state.value.queued.isNotEmpty()) {
-            client.outbox.enqueue(seatId, text)
-            state.update { it.copy(notice = QUEUED) }
-            return
-        }
         state.update { it.copy(sending = true, notice = null) }
         scope.launch {
-            val notice = try {
-                val r = client.api.send(seatId, text)
-                when (r.status) {
-                    "delivered" -> {
-                        // The reply streams back over the socket: make sure it is alive.
-                        client.socket.checkAlive()
-                        null
-                    }
-                    "busy" -> {
-                        client.outbox.enqueue(seatId, text)
-                        QUEUED
-                    }
-                    else -> "Not delivered: ${r.hint ?: r.status}"
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                "Not delivered: ${e.message}"
-            }
+            val notice = sends.send(text, interrupt)
+            // The reply streams back over the socket: make sure it is alive.
+            if (notice == null) client.socket.checkAlive()
             state.update { it.copy(sending = false, notice = notice) }
         }
     }
@@ -389,22 +388,23 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
 
     fun sendFile(file: Upload, note: String) = sendFiles(listOf(file), note)
 
-    fun forceSend(id: Long) {
+    /** Send a held message now, into Claude's queue; [interrupt] also interrupts main's turn. */
+    fun forceSend(id: Long, interrupt: Boolean = false) {
         scope.launch {
             val notice = try {
-                val r = client.outbox.forceSend(id)
+                val r = client.outbox.forceSend(id, interrupt)
                 when (r.status) {
                     "delivered" -> {
                         client.socket.checkAlive()
-                        "Sent now — the seat takes it mid-turn"
+                        null
                     }
-                    "busy" -> "Not sent: this server cannot force a send yet — still queued"
-                    else -> "Not sent: ${r.hint ?: r.status} — still queued"
+                    "busy" -> "Not sent: this server cannot queue into a busy seat — still held"
+                    else -> "Not sent: ${r.hint ?: r.status} — still held"
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                "Not sent: ${e.message} — still queued"
+                "Not sent: ${e.message} — still held"
             }
             state.update { it.copy(notice = notice) }
         }
@@ -427,7 +427,6 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
 
     companion object {
         internal const val POLL_MS = 5_000L
-        internal const val QUEUED = "Seat busy — queued, sends when it goes idle"
 
         /** What a seat is told about a file: where to fetch it with its own token. */
         internal fun fileMessage(f: UploadedFile, note: String): String = filesMessage(listOf(f), note)

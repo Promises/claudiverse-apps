@@ -157,18 +157,22 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
     /**
      * Hand a seat a message. Rejected with status `busy` while the seat is
      * mid-turn, unless [force]: then the seat takes it into its own queue, as
-     * if typed while Claude works. A server without `force` support ignores the
-     * flag and answers `busy`.
+     * if typed while Claude works. [interrupt] (Send now) also aborts main's
+     * running turn so the message runs at once; it implies force. A server
+     * without `force` support answers `busy`; a seat on a mod without
+     * interrupt just queues it. A delivered message carries the id it has in
+     * the seat's queue ([SendResult.messageId]).
      */
     @Throws(Exception::class)
-    suspend fun send(seatId: Long, content: String, force: Boolean = false): SendResult {
+    suspend fun send(seatId: Long, content: String, force: Boolean = false, interrupt: Boolean = false): SendResult {
         val body = buildJsonObject {
             put("session_id", seatId)
             put("content", content)
-            if (force) put("force", true)
+            if (force || interrupt) put("force", true)
+            if (interrupt) put("interrupt", true)
         }
         val o = post(listOf("notify", "send"), body)
-        return SendResult(o.text("status"), o.str("hint") ?: o.str("error"))
+        return SendResult(o.text("status"), o.str("hint") ?: o.str("error"), o.str("message_id") ?: o.long("message_id")?.toString())
     }
 
     /**

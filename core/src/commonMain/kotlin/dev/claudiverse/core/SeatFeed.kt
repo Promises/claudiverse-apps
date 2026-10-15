@@ -20,7 +20,7 @@ data class Transcript(
 class SeatFeed(private val maxMessages: Int = MAX_MESSAGES) {
 
     /** What an event changed, so a UI redraws no more than it must. */
-    enum class Change { NONE, STREAMING, TRANSCRIPT }
+    enum class Change { NONE, STREAMING, TRANSCRIPT, QUEUE }
 
     /**
      * Messages in arrival order, keyed by uuid. The same message can arrive
@@ -45,6 +45,10 @@ class SeatFeed(private val maxMessages: Int = MAX_MESSAGES) {
 
     /** What the seat runs in the background now: Claude Code's whole list, as last sent. */
     var backgroundTasks: List<BackgroundTask> = emptyList()
+        private set
+
+    /** Claude's own queue on the seat, as last sent: the whole list, in the seat's order. */
+    var promptQueue: List<QueuedPrompt> = emptyList()
         private set
 
     /** The seat's agents in the order they started, as the switcher lists them. */
@@ -74,6 +78,8 @@ class SeatFeed(private val maxMessages: Int = MAX_MESSAGES) {
             payload.array("agents")?.forEach { (it as? JsonObject)?.let(::snapshotAgent) }
             // The latest background list; replays without one (an older server) leave none.
             backgroundTasks = BackgroundTask.list(payload.array("background_tasks"))
+            // Likewise Claude's queue; a seat on an older mod sends none.
+            promptQueue = QueuedPrompt.list(payload.array("prompt_queue"))
             earlierMessages = earlier
             streaming = ""
             Change.TRANSCRIPT
@@ -85,6 +91,11 @@ class SeatFeed(private val maxMessages: Int = MAX_MESSAGES) {
             payload.text("type") == "background_tasks" -> {
                 backgroundTasks = BackgroundTask.list(payload.array("tasks"))
                 Change.TRANSCRIPT
+            }
+            // Claude's queue: the whole list each time, replacing the last; never a transcript row.
+            payload.text("type") == "prompt_queue" -> {
+                promptQueue = QueuedPrompt.list(payload.array("queue"))
+                Change.QUEUE
             }
             isAgents(payload) -> if (agentEvent(payload)) Change.TRANSCRIPT else Change.NONE
             TranscriptBuilder.isNoise(payload) -> Change.NONE

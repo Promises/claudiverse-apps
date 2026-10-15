@@ -17,8 +17,8 @@ import kotlinx.serialization.json.put
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
-/** A message waiting for its seat to go idle. */
-data class QueuedMessage(val id: Long, val seatId: Long, val text: String, val queuedAt: Long)
+/** A message held in this app until its seat can take it; [interrupt]: sent as Send now. */
+data class QueuedMessage(val id: Long, val seatId: Long, val text: String, val queuedAt: Long, val interrupt: Boolean = false)
 
 /** Where the queue is kept between runs: SharedPreferences on Android, UserDefaults on macOS. */
 interface OutboxStore {
@@ -27,13 +27,12 @@ interface OutboxStore {
 }
 
 /**
- * Messages typed while their seat was busy, delivered when it goes idle.
- *
- * The server rejects a send to a busy seat rather than queueing it, so the
- * queue lives here: saved through [store] (it survives the app being killed),
- * and drained one message per seat per idle — a delivered send makes the seat
- * busy again, so the next one waits for the following idle. Delivery needs
- * the app running.
+ * Messages held in this app because their seat could not take them: it was
+ * offline or stopped, a send failed, or the server cannot force a send into
+ * a busy seat. Saved through [store] (it survives the app being killed) and
+ * drained one message per seat per poll, in order, into the seat's own queue
+ * (force) once the seat runs with its sidecar connected; on a server that
+ * cannot force, only when the seat is idle. Delivery needs the app running.
  */
 class Outbox(private val store: OutboxStore, private val api: Api, private val scope: CoroutineScope) {
 
@@ -46,23 +45,23 @@ class Outbox(private val store: OutboxStore, private val api: Api, private val s
     }
 
     @OptIn(ExperimentalTime::class)
-    fun enqueue(seatId: Long, text: String) {
+    fun enqueue(seatId: Long, text: String, interrupt: Boolean = false) {
         val id = (state.value.maxOfOrNull { it.id } ?: 0) + 1
-        update { it + QueuedMessage(id, seatId, text, Clock.System.now().toEpochMilliseconds()) }
+        update { it + QueuedMessage(id, seatId, text, Clock.System.now().toEpochMilliseconds(), interrupt) }
         startDraining()
     }
 
     fun remove(id: Long) = update { list -> list.filterNot { it.id == id } }
 
     /**
-     * Deliver now, busy or not: the seat takes it into its own queue mid-turn,
-     * as if typed while Claude works. Needs the server's `force` support; a
-     * server without it answers `busy` and the message stays queued.
+     * Deliver a held message now, busy or not: into the seat's own queue, and
+     * with [interrupt] (or when it was held as Send now) interrupting main's
+     * turn. A server without `force` answers `busy` and it stays held.
      */
     @Throws(Exception::class)
-    suspend fun forceSend(id: Long): SendResult {
-        val msg = state.value.firstOrNull { it.id == id } ?: return SendResult("error", "no longer queued")
-        val result = api.send(msg.seatId, msg.text, force = true)
+    suspend fun forceSend(id: Long, interrupt: Boolean = false): SendResult {
+        val msg = state.value.firstOrNull { it.id == id } ?: return SendResult("error", "no longer held")
+        val result = api.send(msg.seatId, msg.text, force = true, interrupt = interrupt || msg.interrupt)
         if (result.delivered) remove(id)
         return result
     }
@@ -81,9 +80,10 @@ class Outbox(private val store: OutboxStore, private val api: Api, private val s
         try {
             val (seat, live) = api.seat(seatId)
             // A seat that has ended will never go idle: its queue is dead.
-            if (seat.status != "running") return
-            if (live?.idle != true) return
-            if (api.send(seatId, msg.text).delivered) remove(msg.id)
+            if (seat.status != "running" || live?.sidecarConnected == false) return
+            val r = api.send(seatId, msg.text, force = true, interrupt = msg.interrupt)
+            // A server that cannot force answers busy until the seat is idle.
+            if (r.delivered) remove(msg.id)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -107,6 +107,7 @@ class Outbox(private val store: OutboxStore, private val api: Api, private val s
                     put("seat", it.seatId)
                     put("text", it.text)
                     put("at", it.queuedAt)
+                    if (it.interrupt) put("interrupt", true)
                 }
             },
         ).toString()
@@ -118,7 +119,7 @@ class Outbox(private val store: OutboxStore, private val api: Api, private val s
                 val id = o.long("id") ?: return@mapNotNull null
                 val seat = o.long("seat") ?: return@mapNotNull null
                 val text = o.str("text") ?: return@mapNotNull null
-                QueuedMessage(id, seat, text, o.long("at") ?: 0)
+                QueuedMessage(id, seat, text, o.long("at") ?: 0, o.flag("interrupt"))
             }
         }
     }
