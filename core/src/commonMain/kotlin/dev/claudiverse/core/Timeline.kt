@@ -13,7 +13,7 @@ import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
-/** A transcript row: an item, a time divider above a gap, or the line where a resumed seat took over. */
+/** A transcript row: an item, a time divider above a gap, the line where a resumed seat took over, or an event at a time. */
 sealed interface TimelineRow {
     val key: String
 
@@ -23,6 +23,9 @@ sealed interface TimelineRow {
     data object Resumed : TimelineRow {
         override val key = "resumed"
     }
+
+    /** Something that happened to the seat at [at], drawn as a line in the transcript (an auto-restart). */
+    data class Marker(override val key: String, val at: Long, val label: String) : TimelineRow
 
     /** [at] is the item's time: its message's own, or the last known before it when the message has none. */
     data class Entry(override val key: String, val item: TranscriptItem, val at: Long?) : TimelineRow
@@ -54,7 +57,10 @@ object Timeline {
         times: Map<String, Long>,
         zone: TimeZone = TimeZone.currentSystemDefault(),
         earlier: Set<String> = emptySet(),
-    ): List<TimelineRow> {
+        markers: List<TimelineMarker> = emptyList(),
+    ): List<TimelineRow> = placeMarkers(entryRows(items, times, zone, earlier), markers)
+
+    private fun entryRows(items: List<TranscriptItem>, times: Map<String, Long>, zone: TimeZone, earlier: Set<String>): List<TimelineRow> {
         val out = ArrayList<TimelineRow>(items.size + 8)
         var last: Long? = null
         var seenEarlier = false
@@ -74,6 +80,24 @@ object Timeline {
             out += TimelineRow.Entry(item.key, item, own ?: last)
         }
         if (seenEarlier && !resumedDrawn) out += TimelineRow.Resumed
+        return out
+    }
+
+    /**
+     * Each marker before the first entry later than it (and before that
+     * entry's time divider), oldest first; after everything when no entry is
+     * later. Markers take no part in the time dividers.
+     */
+    private fun placeMarkers(rows: List<TimelineRow>, markers: List<TimelineMarker>): List<TimelineRow> {
+        if (markers.isEmpty()) return rows
+        val out = rows.toMutableList()
+        for (m in markers.sortedBy { it.at }) {
+            var i = out.indexOfFirst { it is TimelineRow.Entry && it.at != null && it.at > m.at }
+            if (i < 0) i = out.size else if (i > 0 && out[i - 1] is TimelineRow.Divider) i -= 1
+            // After the earlier markers already placed at the same spot.
+            while (i < out.size && out[i] is TimelineRow.Marker) i++
+            out.add(i, TimelineRow.Marker(m.key, m.at, m.label))
+        }
         return out
     }
 
@@ -114,3 +138,6 @@ object Timeline {
 
     private fun dayIndex(t: Long, zone: TimeZone): Long = local(t, zone).date.toEpochDays().toLong()
 }
+
+/** Something to draw in a seat's transcript at its time ([TimelineRow.Marker]). */
+data class TimelineMarker(val key: String, val at: Long, val label: String)

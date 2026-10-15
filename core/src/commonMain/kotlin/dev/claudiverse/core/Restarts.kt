@@ -125,8 +125,10 @@ data class SeatRestartEvent(
     val note: String?,
     val restartId: String?,
     val batchId: String?,
-    /** Who started it: "auto" for the server's auto-restart of an idle seat; null or anything else, a person. */
+    /** Who started it: "auto" for the server's auto-restart of an idle seat; "manual" (or null from an older server), a person. */
     val origin: String? = null,
+    /** When it happened, ms: the server's time when it sends one, else when this app received it. */
+    val atMs: Long? = null,
 ) {
     /** Started by the server's auto-restart, not by a person. */
     val isAuto: Boolean get() = origin == AUTO
@@ -159,6 +161,7 @@ data class SeatRestartEvent(
             restartId = o.str("restart_id"),
             batchId = o.str("batch_id"),
             origin = o.str("origin"),
+            atMs = parseServerTime(o.str("at") ?: o.str("timestamp")),
         )
     }
 }
@@ -256,7 +259,8 @@ class Restarts(private val socket: PhoenixSocket, private val scope: CoroutineSc
 
     internal fun onEvent(event: String, payload: JsonObject) {
         when (event) {
-            "seat_restart" -> runCatching { SeatRestartEvent.from(payload) }.getOrNull()?.let { e ->
+            "seat_restart" -> runCatching { SeatRestartEvent.from(payload) }.getOrNull()?.let { parsed ->
+                val e = if (parsed.atMs != null) parsed else parsed.copy(atMs = nowMs())
                 eventsState.update { (it + e).takeLast(MAX_EVENTS) }
             }
             "restart_batch" -> runCatching { RestartBatchEvent.from(payload) }.getOrNull()?.let { b ->
@@ -269,3 +273,24 @@ class Restarts(private val socket: PhoenixSocket, private val scope: CoroutineSc
         const val MAX_EVENTS = 500
     }
 }
+
+/** A finished auto-restart, in a line: "Auto-restarted on 2.1.300", or how it ended and why. Both apps word it this way. */
+fun autoRestartLabel(e: SeatRestartEvent): String = when (e.outcome) {
+    "restarted" -> "Auto-restarted" + (e.newVersion?.let { " on $it" } ?: "") + (if (e.killed) " (its old process had to be killed)" else "")
+    "adopted" -> "Auto-restarted into a tmux seat" + (e.newVersion?.let { " on $it" } ?: "")
+    "skipped" -> "Auto-restart skipped: " + (e.reason ?: "the machine skipped it")
+    else -> when {
+        e.leftStopped -> "Auto-restart stopped the seat and could not start it again: " + (e.reason ?: "no reason given")
+        e.unconfirmed -> "Auto-restarted, but it has not registered yet; it may be running: " + (e.reason ?: "no reason given")
+        else -> "Auto-restart failed: " + (e.reason ?: "no reason given")
+    }
+}
+
+/**
+ * This seat's finished auto-restarts as transcript markers, at their time:
+ * the seat it was (its old row) or the one it became.
+ */
+fun restartMarkers(events: List<SeatRestartEvent>, seatId: Long): List<TimelineMarker> =
+    events.filter { it.isAuto && it.finished && it.atMs != null && (it.sessionId == seatId || it.newSessionId == seatId) }
+        .map { TimelineMarker("restart:${it.restartId ?: it.batchId ?: ""}:${it.sessionId}", it.atMs!!, autoRestartLabel(it)) }
+        .distinctBy { it.key }

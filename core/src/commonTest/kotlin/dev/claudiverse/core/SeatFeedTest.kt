@@ -92,6 +92,7 @@ class SeatFeedTest {
                 is TimelineRow.Divider -> "D"
                 TimelineRow.Resumed -> "R"
                 is TimelineRow.Entry -> "E"
+                is TimelineRow.Marker -> "M"
             }
         }
         assertEquals("EEERE", shape)

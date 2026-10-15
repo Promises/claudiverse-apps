@@ -54,6 +54,9 @@ class SeatFeed(private val maxMessages: Int = MAX_MESSAGES) {
     /** The seat's agents in the order they started, as the switcher lists them. */
     val agents: List<SeatAgent> get() = agentsById.values.toList()
 
+    /** Events drawn in main's transcript at their time (a seat's auto-restarts); set, then rebuild the transcript. */
+    var markers: List<TimelineMarker> = emptyList()
+
     /** Text the model is writing right now, from stream events; empty between messages. */
     var streaming: String = ""
         private set
@@ -142,7 +145,8 @@ class SeatFeed(private val maxMessages: Int = MAX_MESSAGES) {
         else rows.keys.mapIndexedNotNull { i, id ->
             if (id in earlierMessages) TranscriptBuilder.messageKey(all[i], i) else null
         }.toSet()
-        return Transcript(unique, Timeline.rows(unique, Timeline.messageTimes(all), earlier = earlier), if (agentId == null) lastEffort else null)
+        val marks = if (agentId == null) markers else emptyList()
+        return Transcript(unique, Timeline.rows(unique, Timeline.messageTimes(all), earlier = earlier, markers = marks), if (agentId == null) lastEffort else null)
     }
 
     /** Keep [m] unless it is noise; returns the id it is kept under. */

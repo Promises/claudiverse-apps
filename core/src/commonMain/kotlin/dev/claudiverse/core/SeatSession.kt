@@ -104,6 +104,18 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
             client.outbox.items.collect { all -> state.update { withOutbox(it.copy(queued = all.filter { q -> q.seatId == seatId })) } }
         }
         scope.launch { sends.sent.collect { state.update(::withOutbox) } }
+        // This seat's auto-restarts, drawn in its transcript at their time.
+        scope.launch {
+            client.restarts.events.collect { all ->
+                val marks = restartMarkers(all, seatId)
+                synchronized(feedLock) {
+                    if (marks != feed.markers) {
+                        feed.markers = marks
+                        publishLocked()
+                    }
+                }
+            }
+        }
         scope.launch {
             watched.collectLatest { on ->
                 while (on && isActive) {
