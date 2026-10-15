@@ -125,6 +125,18 @@ class PromptQueueTest {
         assertEquals(emptyList(), sends.sent.value)
     }
 
+    /** An idle seat starts a sent message at once: once the transcript shows it, it is no longer "sent". */
+    @Test
+    fun aSentMessageTheTranscriptShowsIsNoLongerSent() = runTest {
+        val api = sendingApi("""{"status":"delivered","message_id":"m1"}""")
+        val sends = Sends(api, Outbox(MemoryStore(), api, backgroundScope), 5, backgroundScope)
+        sends.send("hello there")
+        sends.onTranscript(listOf(TranscriptItem.UserText("u0", "something else", injected = false)))
+        assertEquals(listOf("m1"), sends.sent.value.map { it.messageId })
+        sends.onTranscript(listOf(TranscriptItem.UserText("u1", "hello there\n", injected = false)))
+        assertEquals(emptyList(), sends.sent.value)
+    }
+
     /** Offline: held, as a Send now when it was one. Behind a held message: held too, so order holds. */
     @Test
     fun aSeatThatCannotTakeItHoldsItInOrder() = runTest {

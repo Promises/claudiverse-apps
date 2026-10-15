@@ -182,6 +182,7 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
             it.copy(items = t.items, rows = t.rows, transcriptVersion = it.transcriptVersion + 1, streaming = feed.streaming, effort = t.effort,
                 agents = agents, agentThreads = threads, backgroundTasks = feed.backgroundTasks)
         }
+        sends.onTranscript(t.items)
         publishQueueLocked()
     }
 

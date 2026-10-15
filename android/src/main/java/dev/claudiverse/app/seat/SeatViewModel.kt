@@ -201,6 +201,7 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
             it.copy(items = t.items, rows = t.rows, streaming = feed.streaming, effort = t.effort, agents = agents, agentThreads = threads,
                 backgroundTasks = feed.backgroundTasks)
         }
+        sends.onTranscript(t.items)
         publishQueue()
     }
 

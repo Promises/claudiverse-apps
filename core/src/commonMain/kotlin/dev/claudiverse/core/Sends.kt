@@ -18,8 +18,8 @@ import kotlinx.coroutines.launch
  * or a server too old to force) is held in the [Outbox] and sent when the
  * seat is back; one sent behind held messages waits behind them, so order
  * holds. A delivered message shows in [sent] until the seat lists it in its
- * queue ([onQueue]), or for [SENT_GRACE_MS] when it never does (its turn
- * started at once, or the seat's mod lists no queue).
+ * queue ([onQueue]), until its turn starts and the transcript shows it
+ * ([onTranscript]), or for [SENT_GRACE_MS] when neither happens.
  */
 class Sends(private val api: Api, private val outbox: Outbox, private val seatId: Long, private val scope: CoroutineScope) {
 
@@ -65,6 +65,16 @@ class Sends(private val api: Api, private val outbox: Outbox, private val seatId
         if (sentState.value.any { it.messageId in listed }) sentState.update { list -> list.filterNot { it.messageId in listed } }
     }
 
+    /**
+     * The transcript changed: a sent message it now shows as the user's has
+     * started its turn (an idle seat starts it at once, without queueing it).
+     */
+    fun onTranscript(items: List<TranscriptItem>) {
+        if (sentState.value.isEmpty()) return
+        val shown = items.takeLast(RECENT_ITEMS).filterIsInstance<TranscriptItem.UserText>().map { it.text.trim() }.toSet()
+        if (sentState.value.any { it.text.trim() in shown }) sentState.update { list -> list.filterNot { it.text.trim() in shown } }
+    }
+
     private fun track(s: SentPrompt) {
         sentState.update { it + s }
         scope.launch {
@@ -76,6 +86,8 @@ class Sends(private val api: Api, private val outbox: Outbox, private val seatId
     companion object {
         /** How long a delivered message the seat never lists stays shown as sent. */
         const val SENT_GRACE_MS = 15_000L
+        /** How far back [onTranscript] looks for a sent message: the latest turn or two. */
+        private const val RECENT_ITEMS = 40
         const val BEHIND_HELD = "Held behind this seat's earlier held messages"
         const val HELD_BUSY = "Seat busy and this server cannot queue into it: held, sends when it goes idle"
         const val HELD_OFFLINE = "Seat not reachable: held in this app, sends when it is back"
