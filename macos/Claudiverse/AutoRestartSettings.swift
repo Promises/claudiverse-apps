@@ -75,6 +75,8 @@ struct AutoRestartSettings: View {
             global = a
             minutes = AutoRestartWording.minutes(a.minIdleS)
             error = nil
+            // The fleets list is re-read only every minute: read it now, so a change made elsewhere shows on opening.
+            try? await model.client.fleets.refresh()
         } catch {
             if Task.isCancelled || error is CancellationError { return }
             self.error = "Auto-restart not read: \(error.message)"
