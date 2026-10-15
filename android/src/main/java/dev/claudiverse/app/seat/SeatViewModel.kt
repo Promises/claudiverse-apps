@@ -1,5 +1,9 @@
 package dev.claudiverse.app.seat
 
+import dev.claudiverse.core.outboxView
+import dev.claudiverse.core.Sends
+import dev.claudiverse.core.QueuedPrompt
+import dev.claudiverse.core.OutboxRow
 import dev.claudiverse.core.ModelCatalog
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -61,8 +65,12 @@ data class SeatUiState(
     val effort: String? = null,
     /** True while a file is uploading. */
     val uploading: Boolean = false,
-    /** This seat's messages waiting for it to go idle, oldest first. */
+    /** This seat's messages held in this app (cancellable), oldest first. */
     val queued: List<QueuedMessage> = emptyList(),
+    /** Claude's own queue on the seat, in the seat's order; empty from a seat whose mod does not list it. */
+    val promptQueue: List<QueuedPrompt> = emptyList(),
+    /** The Outbox panel: Claude's queue, sent but not yet listed, then held (core's outboxView). */
+    val outbox: List<OutboxRow> = emptyList(),
     /** The last thing the server said about a send, a question answer or a permission. */
     val notice: String? = null,
     val loadError: String? = null,
@@ -104,6 +112,7 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
 
     private val channel = app.socket.channel("session:$seatId", buildJsonObject { put("role", "observer") })
     private val feed = SeatFeed()
+    private val sends = Sends(app.api, app.outbox, seatId, viewModelScope)
 
     /** One seat fetch at a time; restart() abandons a running one (it may be hung) and fetches anew. */
     private val seatFetch = object {
@@ -141,8 +150,9 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
         viewModelScope.launch { channel.error.collect { e -> state.update { it.copy(joinError = e) } } }
         viewModelScope.launch { app.socket.connected.collect { c -> state.update { it.copy(socketConnected = c) } } }
         viewModelScope.launch {
-            app.outbox.items.collect { all -> state.update { it.copy(queued = all.filter { q -> q.seatId == seatId }) } }
+            app.outbox.items.collect { all -> state.update { withOutbox(it.copy(queued = all.filter { q -> q.seatId == seatId })) } }
         }
+        viewModelScope.launch { sends.sent.collect { state.update(::withOutbox) } }
         viewModelScope.launch {
             // Seat status is polled only while the screen is collecting it.
             state.subscriptionCount.map { it > 0 }.distinctUntilChanged().collectLatest { watched ->
@@ -178,8 +188,7 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
         when (feed.onEvent(e.event, e.payload)) {
             SeatFeed.Change.TRANSCRIPT -> publish()
             SeatFeed.Change.STREAMING -> state.update { it.copy(streaming = feed.streaming) }
-            // Claude's queue on the seat: shown by the Outbox panel (next commit).
-            SeatFeed.Change.QUEUE -> Unit
+            SeatFeed.Change.QUEUE -> publishQueue()
             SeatFeed.Change.NONE -> Unit
         }
     }
@@ -192,41 +201,35 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
             it.copy(items = t.items, rows = t.rows, streaming = feed.streaming, effort = t.effort, agents = agents, agentThreads = threads,
                 backgroundTasks = feed.backgroundTasks)
         }
+        publishQueue()
     }
 
+    private fun publishQueue() {
+        val queue = feed.promptQueue
+        sends.onQueue(queue)
+        state.update { withOutbox(it.copy(promptQueue = queue)) }
+    }
+
+    private fun withOutbox(s: SeatUiState) = s.copy(outbox = outboxView(s.queued, s.promptQueue, sends.sent.value))
+
     /**
-     * Send now if the seat is idle; otherwise queue it for the next idle. A send
-     * that races the seat into busy is queued too, never dropped.
+     * Send: into Claude's own queue on the seat, to run when the current turn
+     * ends. A seat that cannot take it now holds it in the Outbox (core's Sends).
      */
-    fun send(text: String) {
+    fun send(text: String) = deliver(text, interrupt = false)
+
+    /** Send now: as [send], and the seat interrupts main's running turn to run it at once. */
+    fun sendNow(text: String) = deliver(text, interrupt = true)
+
+    private fun deliver(text: String, interrupt: Boolean) {
         if (text.isBlank()) return
         // Writing to the seat answers its request for the operator.
         app.humanRequests.resolve(seatId)
-        // Queue behind earlier queued messages so order holds.
-        if (state.value.live?.idle == false || state.value.queued.isNotEmpty()) {
-            app.outbox.enqueue(seatId, text)
-            state.update { it.copy(notice = "Seat busy — queued, sends when it goes idle") }
-            return
-        }
         state.update { it.copy(sending = true, notice = null) }
         viewModelScope.launch(Dispatchers.IO) {
-            val notice = runCatching { app.api.send(seatId, text) }.fold(
-                onSuccess = { r ->
-                    when (r.status) {
-                        "delivered" -> {
-                            // The reply streams back over the socket: make sure it is alive.
-                            app.socket.checkAlive()
-                            null
-                        }
-                        "busy" -> {
-                            app.outbox.enqueue(seatId, text)
-                            "Seat busy — queued, sends when it goes idle"
-                        }
-                        else -> "Not delivered: ${r.hint ?: r.status}"
-                    }
-                },
-                onFailure = { "Not delivered: ${it.message}" },
-            )
+            val notice = sends.send(text, interrupt)
+            // The reply streams back over the socket: make sure it is alive.
+            if (notice == null) app.socket.checkAlive()
             state.update { it.copy(sending = false, notice = notice) }
         }
     }
@@ -431,14 +434,9 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
     }
 
     /**
-     * Upload a file for the seat, then tell it where to fetch it: the seat runs
-     * on another machine, so it pulls the file with its own token. The message
-     * goes through [send], so it queues while the seat is busy.
-     */
-    /**
      * Upload [files] in order, then tell the seat about all of them in one
      * message (core's wording, as the Mac sends), the note last. The message
-     * goes through [send], so it queues while the seat is busy.
+     * goes through [send], into Claude's queue.
      */
     fun sendFiles(files: List<Upload>, note: String) {
         if (files.isEmpty()) return
@@ -457,17 +455,18 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
         }
     }
 
-    fun forceSend(id: Long) {
+    /** Send a held message now, into Claude's queue; [interrupt] also interrupts main's turn. */
+    fun forceSend(id: Long, interrupt: Boolean = false) {
         viewModelScope.launch {
-            val notice = runCatching { app.outbox.forceSend(id) }.fold(
+            val notice = runCatching { app.outbox.forceSend(id, interrupt) }.fold(
                 onSuccess = { r ->
                     when (r.status) {
-                        "delivered" -> { app.socket.checkAlive(); "Sent now — the seat takes it mid-turn" }
-                        "busy" -> "Not sent: this server cannot force a send yet — still queued"
-                        else -> "Not sent: ${r.hint ?: r.status} — still queued"
+                        "delivered" -> { app.socket.checkAlive(); null }
+                        "busy" -> "Not sent: this server cannot queue into a busy seat — still held"
+                        else -> "Not sent: ${r.hint ?: r.status} — still held"
                     }
                 },
-                onFailure = { "Not sent: ${it.message} — still queued" },
+                onFailure = { "Not sent: ${it.message} — still held" },
             )
             state.update { it.copy(notice = notice) }
         }

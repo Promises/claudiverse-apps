@@ -7,6 +7,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -14,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -88,10 +90,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.claudiverse.core.OutboxRow
 import dev.claudiverse.core.answerMap
 import dev.claudiverse.core.clipboardText
 import dev.claudiverse.core.composeAnswer
-import dev.claudiverse.core.QueuedMessage
 import dev.claudiverse.app.seat.SeatUiState
 import dev.claudiverse.app.seat.SeatViewModel
 import dev.claudiverse.core.Timeline
@@ -268,11 +270,11 @@ fun SeatScreen(vm: SeatViewModel, showInfo: Boolean, onShowInfo: (Boolean) -> Un
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp))
         }
-        QueuedList(ui.queued, onForce = vm::forceSend, onRemove = vm::unqueue)
+        OutboxPanel(ui.outbox, onSend = { vm.forceSend(it) }, onRemove = vm::unqueue)
         AttachmentChips(attachments, onRemove = { f -> attachments = attachments - f })
         Composer(
             sending = ui.sending || ui.uploading,
-            busy = ui.live?.idle == false || ui.queued.isNotEmpty(),
+            busy = ui.live?.idle == false,
             attached = attachments.size,
             blocked = attachments.any { it.tooBig },
             onSend = { text ->
@@ -283,6 +285,7 @@ fun SeatScreen(vm: SeatViewModel, showInfo: Boolean, onShowInfo: (Boolean) -> Un
                     attachments = emptyList()
                 }
             },
+            onSendNow = vm::sendNow,
             onAttach = { filePicker.launch(arrayOf("*/*")) },
         )
     }
@@ -451,18 +454,32 @@ private fun RestartSeatDialog(plan: RestartPlan, onConfirm: (confirmProtected: B
     )
 }
 
+/**
+ * The seat's Outbox: Claude's own queue on the seat (it runs these in this
+ * order, and they cannot be taken back), messages just sent that the seat has
+ * not listed yet, and those held in this app until the seat can take them,
+ * which can be sent now or cancelled.
+ */
 @Composable
-private fun QueuedList(queued: List<QueuedMessage>, onForce: (Long) -> Unit, onRemove: (Long) -> Unit) {
-    if (queued.isEmpty()) return
+private fun OutboxPanel(rows: List<OutboxRow>, onSend: (Long) -> Unit, onRemove: (Long) -> Unit) {
+    if (rows.isEmpty()) return
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-            Text("Queued — sends when the seat goes idle", style = MaterialTheme.typography.labelSmall)
-            queued.forEach { q ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(q.text, style = MaterialTheme.typography.bodySmall, maxLines = 2,
-                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { onForce(q.id) }) { Text("Send now") }
-                    IconButton(onClick = { onRemove(q.id) }) { Icon(Icons.Filled.Close, contentDescription = "Remove") }
+            Text("Outbox", style = MaterialTheme.typography.labelSmall)
+            rows.forEach { r ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.heightIn(min = 40.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text(r.text, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (r.interrupting) CircularProgressIndicator(Modifier.size(10.dp), strokeWidth = 1.5.dp)
+                            Text(r.label, style = MaterialTheme.typography.labelSmall,
+                                color = if (r.kind == OutboxRow.Kind.HELD) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    r.heldId?.let { id ->
+                        TextButton(onClick = { onSend(id) }) { Text("Send") }
+                        IconButton(onClick = { onRemove(id) }) { Icon(Icons.Filled.Close, contentDescription = "Cancel") }
+                    }
                 }
             }
         }
@@ -471,7 +488,8 @@ private fun QueuedList(queued: List<QueuedMessage>, onForce: (Long) -> Unit, onR
 
 @Composable
 private fun Composer(
-    sending: Boolean, busy: Boolean, attached: Int, blocked: Boolean, onSend: (String) -> Unit, onAttach: () -> Unit,
+    sending: Boolean, busy: Boolean, attached: Int, blocked: Boolean, onSend: (String) -> Unit, onSendNow: (String) -> Unit,
+    onAttach: () -> Unit,
 ) {
     var text by rememberSaveable { mutableStateOf("") }
     Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -481,15 +499,21 @@ private fun Composer(
             placeholder = {
                 Text(when {
                     attached > 0 -> "A note to go with ${if (attached == 1) "the file" else "the $attached files"} (optional)"
-                    busy -> "Seat busy — your message will queue"
+                    busy -> "Seat working — Send queues it, Send now interrupts"
                     else -> "Message the seat"
                 })
             },
             modifier = Modifier.weight(1f), maxLines = 6,
         )
         if (sending) CircularProgressIndicator(Modifier.padding(8.dp).size(24.dp))
-        else IconButton(onClick = { onSend(text); text = "" }, enabled = !blocked && (text.isNotBlank() || attached > 0)) {
-            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+        else {
+            // Send now interrupts the running turn: only while the seat works, and not for files (they go as a note).
+            if (busy && attached == 0) IconButton(onClick = { onSendNow(text); text = "" }, enabled = text.isNotBlank()) {
+                Icon(Icons.Filled.FastForward, contentDescription = "Send now: interrupt and run it at once")
+            }
+            IconButton(onClick = { onSend(text); text = "" }, enabled = !blocked && (text.isNotBlank() || attached > 0)) {
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+            }
         }
     }
 }
