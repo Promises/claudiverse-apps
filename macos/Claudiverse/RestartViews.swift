@@ -86,20 +86,6 @@ enum RestartWording {
         }
     }
 
-    /// The same for the server's auto-restart of an idle seat: "Auto-restarted on 2.1.300", "Auto-restart skipped: …".
-    static func autoOutcome(_ e: SeatRestartEvent) -> String {
-        switch e.outcome {
-        case "restarted", "adopted": "Auto-restarted" + (e.newVersion.map { " on \($0)" } ?? "")
-        case "skipped": "Auto-restart skipped: \(e.reason ?? "the machine skipped it")"
-        default: "Auto-" + outcome(e).prefix(1).lowercased() + outcome(e).dropFirst()
-        }
-    }
-
-    /// A seat's latest finished auto-restart since the app started, under its old row or the one it registered.
-    static func latestAuto(_ events: [SeatRestartEvent], seat: Int64) -> SeatRestartEvent? {
-        events.last { $0.isAuto && $0.finished && ($0.sessionId == seat || $0.newSessionId?.int64Value == seat) }
-    }
-
     /// Finished restarts, newest first, at most [limit]: the operator's and the server's auto-restarts.
     static func recent(_ events: [SeatRestartEvent], host: String?, limit: Int = 20) -> [SeatRestartEvent] {
         Array(events.filter { $0.finished && (host == nil || $0.host == host) }.suffix(limit).reversed())
@@ -240,7 +226,7 @@ struct RestartIdleSheet: View {
                 if e.isAuto { Pill(text: "auto", color: Theme.info).help("Restarted by the server's auto-restart of idle seats") }
                 if scope.host == nil, let host = e.host { Text(host).font(.caption).foregroundStyle(.secondary) }
             }
-            Text(e.isAuto ? RestartWording.autoOutcome(e) : RestartWording.outcome(e))
+            Text(e.isAuto ? autoRestartLabel(e: e) : RestartWording.outcome(e))
                 .font(.caption)
                 .foregroundStyle(e.outcome == "failed" ? Theme.bad : .secondary)
                 .textSelection(.enabled)

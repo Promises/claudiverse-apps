@@ -227,6 +227,15 @@ struct TranscriptRows: View, Equatable {
                 VStack { Divider() }
             }
             .padding(.vertical, 4)
+        case .marker(let m):
+            // Something that happened to the seat at a time (an auto-restart): once, where it happened.
+            HStack {
+                VStack { Divider() }
+                Text("\(m.label) · \(Timeline.shared.label(at: m.at))")
+                    .font(.caption2.weight(.semibold)).foregroundStyle(.secondary).textSelection(.enabled)
+                VStack { Divider() }
+            }
+            .padding(.vertical, 4)
         case .entry(let e):
             // No click handler on the row: on macOS one takes the mouse from the text inside, and its text could not
             // be selected. The time shows while the pointer is over the row; Copy (right-click) takes the whole message.

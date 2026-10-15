@@ -17,7 +17,7 @@ final class RestartViewsTests: XCTestCase {
                        newSession: Int64? = nil) -> SeatRestartEvent {
         SeatRestartEvent(sessionId: id, title: nil, host: host, outcome: outcome, reason: reason, reasonCode: code, oldVersion: "2.1.292",
                          newVersion: outcome == "restarted" ? "2.1.296" : nil, newSessionId: newSession.map { KotlinLong(value: $0) },
-                         killed: killed, note: note, restartId: "r\(id)", batchId: batch, origin: origin)
+                         killed: killed, note: note, restartId: "r\(id)", batchId: batch, origin: origin, atMs: nil)
     }
 
     /// Ticked to start: everything it would restart or adopt, never a skip, never a protected seat.
@@ -88,24 +88,12 @@ final class RestartViewsTests: XCTestCase {
         XCTAssertEqual(RestartIdleSheet.summary(done), "Done: 2 restarted, 1 failed")
     }
 
-    /// The server's auto-restart says so, on the seat and in Recent restarts; a person's restart reads as before.
-    func testAnAutoRestartSaysSo() {
-        XCTAssertEqual(RestartWording.autoOutcome(event(1, "restarted", origin: "auto")), "Auto-restarted on 2.1.296")
-        XCTAssertEqual(RestartWording.autoOutcome(event(1, "skipped", reason: "it is mid-turn", origin: "auto")), "Auto-restart skipped: it is mid-turn")
-        XCTAssertEqual(RestartWording.autoOutcome(event(1, "failed", reason: "spawn refused", origin: "auto")), "Auto-restart failed: spawn refused")
+    /// A person's restart reads as before; an auto-restart is worded by core, the same in both apps.
+    func testARestartSaysHowItEnded() {
+        XCTAssertEqual(autoRestartLabel(e: event(1, "restarted", origin: "auto")), "Auto-restarted on 2.1.296")
         XCTAssertEqual(RestartWording.outcome(event(1, "restarted", killed: true)), "Restarted on 2.1.296 (its old process had to be killed)")
         XCTAssertEqual(RestartWording.outcome(event(1, "failed", reason: "tmux new-session -s x", code: "not_restarted")),
                        "Stopped and not started again: tmux new-session -s x")
-    }
-
-    /// A seat's latest finished auto-restart: under its old row or the one it registered, never a person's or an unfinished one.
-    func testASeatShowsItsLatestAutoRestart() {
-        let events = [event(1, "restarted", origin: "auto"), event(1, "started", origin: "auto"), event(2, "restarted"),
-                      event(3, "skipped", reason: "busy", origin: "auto", newSession: nil), event(4, "restarted", origin: "auto", newSession: 9)]
-        XCTAssertEqual(RestartWording.latestAuto(events, seat: 1)?.outcome, "restarted")
-        XCTAssertNil(RestartWording.latestAuto(events, seat: 2), "a person's restart is not an auto-restart")
-        XCTAssertEqual(RestartWording.latestAuto(events, seat: 9)?.sessionId, 4, "found under the row it registered")
-        XCTAssertNil(RestartWording.latestAuto(events, seat: 5))
     }
 
     /// Recent restarts: finished ones only, newest first, this machine's when the sheet is for one.
