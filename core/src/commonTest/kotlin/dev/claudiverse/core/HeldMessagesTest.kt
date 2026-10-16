@@ -106,4 +106,13 @@ class HeldMessagesTest {
         assertEquals("http://server/api/notify/held/h1/now", requests.last().url.toString())
         assertFalse(api("""{"status":"too_late"}""").sendHeldNow("h1").delivered)
     }
+
+    /** too_late: interrupt only while it still waits in the queue; gone from it, it is the turn running now. */
+    @Test
+    fun aTooLateSendNowInterruptsOnlyWhileItWaitsInTheQueue() {
+        val queue = listOf(QueuedPrompt("h1", "x", null, QueuedPrompt.QUEUED))
+        assertTrue(interruptAfterTooLate("h1", queue))
+        assertFalse(interruptAfterTooLate("h1", emptyList()), "the seat went idle and is running it")
+        assertFalse(interruptAfterTooLate("h1", listOf(QueuedPrompt("other", "y", null, QueuedPrompt.QUEUED))))
+    }
 }

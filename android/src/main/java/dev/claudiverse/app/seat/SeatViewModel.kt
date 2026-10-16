@@ -1,6 +1,7 @@
 package dev.claudiverse.app.seat
 
 import dev.claudiverse.core.cancellableNow
+import dev.claudiverse.core.interruptAfterTooLate
 import dev.claudiverse.core.HeldMessage
 import dev.claudiverse.core.outboxView
 import dev.claudiverse.core.Sends
@@ -534,8 +535,8 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
 
     /**
      * Send a message the server holds at once, interrupting the running turn.
-     * One that has already gone out is in Claude's queue: interrupt, so Claude
-     * runs its queue now.
+     * One that has already gone out and still waits in Claude's queue: interrupt,
+     * so Claude runs its queue now; one already running is left alone.
      */
     private fun sendHeldNow(messageId: String) {
         viewModelScope.launch {
@@ -543,7 +544,9 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
                 onSuccess = { r ->
                     when {
                         r.delivered -> { app.socket.checkAlive(); null }
-                        r.status == "too_late" -> { interrupt(); null }
+                        r.status == "too_late" ->
+                            if (interruptAfterTooLate(messageId, state.value.promptQueue)) { interrupt(); null }
+                            else SeatSession.ALREADY_SENT
                         r.status == "cancelled" -> "Not sent: it was taken back"
                         else -> "Not sent: ${r.hint ?: r.status}"
                     }

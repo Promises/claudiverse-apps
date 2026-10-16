@@ -447,8 +447,8 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
 
     /**
      * Send a message the server holds at once, interrupting the running turn.
-     * One that has already gone out is in Claude's queue: interrupt, so Claude
-     * runs its queue now, as the operator asked.
+     * One that has already gone out and still waits in Claude's queue: interrupt,
+     * so Claude runs its queue now; one already running is left alone.
      */
     fun sendHeldNow(messageId: String) {
         scope.launch {
@@ -456,7 +456,9 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
                 val r = client.api.sendHeldNow(messageId)
                 when {
                     r.delivered -> { client.socket.checkAlive(); null }
-                    r.status == "too_late" -> if (interrupt()) null else "Not sent: not connected"
+                    r.status == "too_late" ->
+                        if (!interruptAfterTooLate(messageId, state.value.promptQueue)) ALREADY_SENT
+                        else if (interrupt()) null else "Not sent: not connected"
                     r.status == "cancelled" -> "Not sent: it was taken back"
                     else -> "Not sent: ${r.hint ?: r.status}"
                 }
@@ -484,6 +486,7 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
 
     companion object {
         internal const val POLL_MS = 5_000L
+        const val ALREADY_SENT = "Already sent: the seat is running it"
         const val TOO_LATE = "Too late: it has gone to the seat, and Claude Code cannot take back a queued message"
 
         /** What a seat is told about a file: where to fetch it with its own token. */

@@ -103,6 +103,14 @@ data class OutboxRow(
 }
 
 /**
+ * After Send now on a held message answered too_late (it already went to the
+ * seat): interrupt only while it still waits in Claude's queue behind a turn.
+ * Gone from the queue, it is the turn running now (the seat went idle and
+ * took it), and an interrupt would abort the very message asked for.
+ */
+fun interruptAfterTooLate(messageId: String, queue: List<QueuedPrompt>): Boolean = queue.any { it.id == messageId }
+
+/**
  * Whether [row] can still be taken back at [nowMs]: one held in this app
  * always; one the server holds until its [OutboxRow.deliverAtMs] (the trash
  * greys at that moment, without waiting for the server's next list); one in
