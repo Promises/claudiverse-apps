@@ -312,28 +312,42 @@ private struct AttachmentStrip: View {
 /**
  * This seat's messages waiting for it to go idle, drawn as they always were:
  * Send now and a trash can on each. Underneath it is core's outbox, in run
- * order: Claude's own queue, messages sent but not yet listed by the seat,
- * then messages held in this app (the seat offline, or a send that failed).
- * Send now on a held one delivers it interrupting the turn; on any other it
- * interrupts the turn, and Claude runs its queue in order. Only a held one
- * can be cancelled: Claude Code cannot take back a message in its queue.
+ * order: Claude's own queue, messages the server holds for the busy seat
+ * (for at most 15 s), messages sent but not yet listed by the seat, then
+ * messages held in this app (the seat offline, or a send that failed).
+ *
+ * Send now on a held one (here or on the server) delivers it interrupting the
+ * turn; on any other it interrupts the turn, and Claude runs its queue in
+ * order. The trash takes back one held here, or one the server still holds;
+ * Claude Code cannot take back a message in its queue, so there it is greyed.
  */
 struct OutboxPanel: View {
     let rows: [OutboxRow]
     let session: SeatSession
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        // Ticks while the server holds one, so its trash greys when its 15 s are up.
+        if rows.contains(where: { $0.kind == .serverHeld }) {
+            TimelineView(.periodic(from: .now, by: 1)) { context in list(now: context.date) }
+        } else {
+            list(now: Date())
+        }
+    }
+
+    private func list(now: Date) -> some View {
+        let nowMs = Int64(now.timeIntervalSince1970 * 1000)
+        return VStack(alignment: .leading, spacing: 4) {
             ForEach(rows, id: \.key) { row in
+                let cancellable = Self.canCancel(row, nowMs: nowMs)
                 HStack(alignment: .firstTextBaseline) {
                     Image(systemName: "clock").foregroundStyle(Theme.busy)
                     Text(row.text).lineLimit(2).font(.callout)
                     Spacer()
                     Button("Send now") { sendNow(row) }.help(Self.sendNowHelp(row))
-                    Button { if let id = row.heldId?.int64Value { session.unqueue(id: id) } } label: { Image(systemName: "trash") }
+                    Button { cancel(row) } label: { Image(systemName: "trash") }
                         .buttonStyle(.borderless)
-                        .disabled(!Self.canCancel(row))
-                        .help(Self.canCancel(row) ? "" : Self.notCancellable)
+                        .disabled(!cancellable)
+                        .help(cancellable ? "" : Self.notCancellable)
                 }
             }
         }
@@ -342,21 +356,31 @@ struct OutboxPanel: View {
     }
 
     private func sendNow(_ row: OutboxRow) {
-        if let id = row.heldId?.int64Value {
+        if row.kind == .serverHeld, let id = row.messageId {
+            session.sendHeldNow(messageId: id)
+        } else if let id = row.heldId?.int64Value {
             session.forceSend(id: id, interrupt: true)
         } else {
             _ = session.interrupt()
         }
     }
 
+    private func cancel(_ row: OutboxRow) {
+        if row.kind == .serverHeld, let id = row.messageId {
+            session.cancelHeld(messageId: id)
+        } else if let id = row.heldId?.int64Value {
+            session.unqueue(id: id)
+        }
+    }
+
     static let notCancellable = "Claude Code cannot take back a message in its queue"
 
-    /// Only a message still held in this app can be cancelled.
-    static func canCancel(_ row: OutboxRow) -> Bool { row.heldId != nil && row.cancellable }
+    /// Core's rule: one held here always; one the server holds until its 15 s are up; never one in Claude's queue.
+    static func canCancel(_ row: OutboxRow, nowMs: Int64) -> Bool { cancellableNow(row: row, nowMs: nowMs) }
 
     static func sendNowHelp(_ row: OutboxRow) -> String {
-        row.heldId != nil ? "Deliver it now, interrupting the running turn"
-                          : "Interrupt the running turn: Claude then runs its queue, this one in turn"
+        row.kind == .held || row.kind == .serverHeld ? "Deliver it now, interrupting the running turn"
+                                                     : "Interrupt the running turn: Claude then runs its queue, this one in turn"
     }
 }
 
