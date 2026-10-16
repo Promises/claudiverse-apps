@@ -10,14 +10,16 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Sending to one seat, as both apps do it. Send goes straight into Claude's
- * own queue on the seat (force): it runs when the current turn ends. Send now
- * also interrupts: the seat aborts main's turn and runs the message at once.
+ * Sending to one seat, as both apps do it. Send to a busy seat is held by the
+ * server for up to 15 s (it can be taken back until then), then goes into
+ * Claude's own queue; to an idle seat it runs at once. Send now forces it
+ * into the queue and interrupts: the seat aborts main's turn and runs its
+ * queue in order.
  *
  * A message the seat cannot take now (offline, stopped, a send that failed,
  * or a server too old to force) is held in the [Outbox] and sent when the
  * seat is back; one sent behind held messages waits behind them, so order
- * holds. A delivered message shows in [sent] until the seat lists it in its
+ * holds. A delivered or held message shows in [sent] until the seat lists it in its
  * queue ([onQueue]), until its turn starts and the transcript shows it
  * ([onTranscript]), or for [SENT_GRACE_MS] when neither happens.
  */
@@ -34,15 +36,16 @@ class Sends(private val api: Api, private val outbox: Outbox, private val seatId
             return BEHIND_HELD
         }
         return try {
+            // Force: a busy seat's message is held by the server (up to 15 s), never refused.
             val r = api.send(seatId, text, force = true, interrupt = interrupt)
             when (r.status) {
-                "delivered" -> {
+                "delivered", "held" -> {
                     r.messageId?.let { track(SentPrompt(it, text, interrupt, nowMs())) }
                     null
                 }
                 "refused" -> "Not delivered: ${r.hint ?: r.status}"
                 "busy" -> {
-                    // A server that cannot force: the seat is mid-turn, so hold it for the next idle.
+                    // A server without the hold: the seat is mid-turn, so hold it here (the Outbox delivers it with force).
                     outbox.enqueue(seatId, text, interrupt)
                     HELD_BUSY
                 }
@@ -59,9 +62,9 @@ class Sends(private val api: Api, private val outbox: Outbox, private val seatId
         }
     }
 
-    /** The seat's queue as last sent: a sent message it lists is the seat's from now on. */
-    fun onQueue(queue: List<QueuedPrompt>) {
-        val listed = queue.map { it.id }.toSet()
+    /** The seat's queue and the server's held list as last sent: a sent message either lists is theirs from now on. */
+    fun onQueue(queue: List<QueuedPrompt>, held: List<HeldMessage> = emptyList()) {
+        val listed = queue.map { it.id }.toSet() + held.map { it.id }
         if (sentState.value.any { it.messageId in listed }) sentState.update { list -> list.filterNot { it.messageId in listed } }
     }
 

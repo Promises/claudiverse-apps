@@ -47,6 +47,10 @@ class SeatFeed(private val maxMessages: Int = MAX_MESSAGES) {
     var backgroundTasks: List<BackgroundTask> = emptyList()
         private set
 
+    /** Messages the server holds for the busy seat (at most 15 s each), as last sent: the whole list. */
+    var held: List<HeldMessage> = emptyList()
+        private set
+
     /** Claude's own queue on the seat, as last sent: the whole list, in the seat's order. */
     var promptQueue: List<QueuedPrompt> = emptyList()
         private set
@@ -83,6 +87,7 @@ class SeatFeed(private val maxMessages: Int = MAX_MESSAGES) {
             backgroundTasks = BackgroundTask.list(payload.array("background_tasks"))
             // Likewise Claude's queue; a seat on an older mod sends none.
             promptQueue = QueuedPrompt.list(payload.array("prompt_queue"))
+            held = HeldMessage.list(payload.array("held"))
             earlierMessages = earlier
             streaming = ""
             Change.TRANSCRIPT
@@ -98,6 +103,11 @@ class SeatFeed(private val maxMessages: Int = MAX_MESSAGES) {
             // Claude's queue: the whole list each time, replacing the last; never a transcript row.
             payload.text("type") == "prompt_queue" -> {
                 promptQueue = QueuedPrompt.list(payload.array("queue"))
+                Change.QUEUE
+            }
+            // The server's held messages: the whole list each time, replacing the last; never a transcript row.
+            payload.text("type") == "held_messages" -> {
+                held = HeldMessage.list(payload.array("held"))
                 Change.QUEUE
             }
             isAgents(payload) -> if (agentEvent(payload)) Change.TRANSCRIPT else Change.NONE

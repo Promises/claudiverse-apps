@@ -172,7 +172,27 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
             if (interrupt) put("interrupt", true)
         }
         val o = post(listOf("notify", "send"), body)
-        return SendResult(o.text("status"), o.str("hint") ?: o.str("error"), o.str("message_id") ?: o.long("message_id")?.toString())
+        return SendResult(o.text("status"), o.str("hint") ?: o.str("error"), o.str("message_id") ?: o.long("message_id")?.toString(),
+            parseServerTime(o.str("deliver_at")))
+    }
+
+    /**
+     * Take back a message the server holds for a busy seat: "cancelled"
+     * (again if asked twice), "too_late" once it has gone to the seat, or
+     * "unknown" for an id the server does not hold for this user (404).
+     */
+    @Throws(Exception::class)
+    suspend fun cancelHeld(messageId: String): String = try {
+        call(HttpMethod.Delete, listOf("notify", "held", messageId)).str("status") ?: "cancelled"
+    } catch (e: ApiException) {
+        if (e.httpStatus == 404) "unknown" else throw e
+    }
+
+    /** Hand a held message to the seat at once, interrupting its running turn: "delivered", or "too_late" / "cancelled" when no longer held. */
+    @Throws(Exception::class)
+    suspend fun sendHeldNow(messageId: String): SendResult {
+        val o = post(listOf("notify", "held", messageId, "now"))
+        return SendResult(o.str("status") ?: "delivered", o.str("hint") ?: o.str("error"), o.str("message_id") ?: messageId)
     }
 
     /**

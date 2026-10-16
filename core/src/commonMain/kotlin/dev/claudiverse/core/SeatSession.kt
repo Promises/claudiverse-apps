@@ -48,6 +48,8 @@ data class SeatState(
     val queued: List<QueuedMessage> = emptyList(),
     /** Claude's own queue on the seat, in the seat's order; empty from a seat whose mod does not list it. */
     val promptQueue: List<QueuedPrompt> = emptyList(),
+    /** Messages the server holds for the busy seat, at most 15 s each; empty from an older server. */
+    val held: List<HeldMessage> = emptyList(),
     /** The Outbox panel: Claude's queue, sent but not yet listed, then held; see [outboxView]. */
     val outbox: List<OutboxRow> = emptyList(),
     /** The last thing the server said about a send, a question answer or a permission. */
@@ -200,11 +202,12 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
 
     private fun publishQueueLocked() {
         val queue = feed.promptQueue
-        sends.onQueue(queue)
-        state.update { withOutbox(it.copy(promptQueue = queue)) }
+        val held = feed.held
+        sends.onQueue(queue, held)
+        state.update { withOutbox(it.copy(promptQueue = queue, held = held)) }
     }
 
-    private fun withOutbox(s: SeatState): SeatState = s.copy(outbox = outboxView(s.queued, s.promptQueue, sends.sent.value))
+    private fun withOutbox(s: SeatState): SeatState = s.copy(outbox = outboxView(s.queued, s.promptQueue, sends.sent.value, s.held))
 
     /**
      * Send: into Claude's own queue on the seat, to run when the current turn
@@ -425,6 +428,38 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
 
     fun unqueue(id: Long) = client.outbox.remove(id)
 
+    /** Take back a message the server holds; once it has gone to the seat, say so. */
+    fun cancelHeld(messageId: String) {
+        scope.launch {
+            val notice = try {
+                when (client.api.cancelHeld(messageId)) {
+                    "cancelled", "unknown" -> null
+                    else -> TOO_LATE
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                "Not taken back: ${e.message}"
+            }
+            state.update { it.copy(notice = notice) }
+        }
+    }
+
+    /** Send a message the server holds at once, interrupting the running turn. */
+    fun sendHeldNow(messageId: String) {
+        scope.launch {
+            val notice = try {
+                val r = client.api.sendHeldNow(messageId)
+                if (r.delivered) { client.socket.checkAlive(); null } else "Not sent: ${r.hint ?: r.status}"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                "Not sent: ${e.message}"
+            }
+            state.update { it.copy(notice = notice) }
+        }
+    }
+
     fun dismissNotice() = state.update { it.copy(notice = null) }
 
     fun close() {
@@ -440,6 +475,7 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
 
     companion object {
         internal const val POLL_MS = 5_000L
+        const val TOO_LATE = "Too late: it has gone to the seat, and Claude Code cannot take back a queued message"
 
         /** What a seat is told about a file: where to fetch it with its own token. */
         internal fun fileMessage(f: UploadedFile, note: String): String = filesMessage(listOf(f), note)

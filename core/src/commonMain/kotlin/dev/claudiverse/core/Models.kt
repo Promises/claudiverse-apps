@@ -476,6 +476,8 @@ data class SendResult(
     val hint: String?,
     /** The id the message carries in the seat's queue ([QueuedPrompt.id]); null from an older server. */
     val messageId: String? = null,
+    /** For status "held": when the server hands it to the seat at the latest, ms. */
+    val deliverAtMs: Long? = null,
 ) {
     val delivered: Boolean get() = status == "delivered"
 }
