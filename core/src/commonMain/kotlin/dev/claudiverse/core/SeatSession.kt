@@ -445,12 +445,21 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
         }
     }
 
-    /** Send a message the server holds at once, interrupting the running turn. */
+    /**
+     * Send a message the server holds at once, interrupting the running turn.
+     * One that has already gone out is in Claude's queue: interrupt, so Claude
+     * runs its queue now, as the operator asked.
+     */
     fun sendHeldNow(messageId: String) {
         scope.launch {
             val notice = try {
                 val r = client.api.sendHeldNow(messageId)
-                if (r.delivered) { client.socket.checkAlive(); null } else "Not sent: ${r.hint ?: r.status}"
+                when {
+                    r.delivered -> { client.socket.checkAlive(); null }
+                    r.status == "too_late" -> if (interrupt()) null else "Not sent: not connected"
+                    r.status == "cancelled" -> "Not sent: it was taken back"
+                    else -> "Not sent: ${r.hint ?: r.status}"
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

@@ -532,11 +532,22 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
         }
     }
 
-    /** Send a message the server holds at once, interrupting the running turn. */
+    /**
+     * Send a message the server holds at once, interrupting the running turn.
+     * One that has already gone out is in Claude's queue: interrupt, so Claude
+     * runs its queue now.
+     */
     private fun sendHeldNow(messageId: String) {
         viewModelScope.launch {
             val notice = runCatching { app.api.sendHeldNow(messageId) }.fold(
-                onSuccess = { r -> if (r.delivered) { app.socket.checkAlive(); null } else "Not sent: ${r.hint ?: r.status}" },
+                onSuccess = { r ->
+                    when {
+                        r.delivered -> { app.socket.checkAlive(); null }
+                        r.status == "too_late" -> { interrupt(); null }
+                        r.status == "cancelled" -> "Not sent: it was taken back"
+                        else -> "Not sent: ${r.hint ?: r.status}"
+                    }
+                },
                 onFailure = { "Not sent: ${it.message}" },
             )
             state.update { it.copy(notice = notice) }
