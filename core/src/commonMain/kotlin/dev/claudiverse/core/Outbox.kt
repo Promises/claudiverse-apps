@@ -62,7 +62,7 @@ class Outbox(private val store: OutboxStore, private val api: Api, private val s
     suspend fun forceSend(id: Long, interrupt: Boolean = false): SendResult {
         val msg = state.value.firstOrNull { it.id == id } ?: return SendResult("error", "no longer held")
         val result = api.send(msg.seatId, msg.text, force = true, interrupt = interrupt || msg.interrupt)
-        if (result.delivered) remove(id)
+        if (result.accepted) remove(id)
         return result
     }
 
@@ -82,8 +82,9 @@ class Outbox(private val store: OutboxStore, private val api: Api, private val s
             // A seat that has ended will never go idle: its queue is dead.
             if (seat.status != "running" || live?.sidecarConnected == false) return
             val r = api.send(seatId, msg.text, force = true, interrupt = msg.interrupt)
-            // A server that cannot force answers busy until the seat is idle.
-            if (r.delivered) remove(msg.id)
+            // A server that cannot force answers busy until the seat is idle. A held
+            // message is the server's now: sending it again would queue another copy.
+            if (r.accepted) remove(msg.id)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

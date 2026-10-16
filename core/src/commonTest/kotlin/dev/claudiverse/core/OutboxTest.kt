@@ -132,4 +132,31 @@ class OutboxTest {
         assertEquals(0, sent)
         assertEquals(1, outbox.items.value.size)
     }
+
+    /**
+     * A busy seat's server holds a forced send and answers "held". The message
+     * is the server's then: it is sent exactly once and leaves the outbox. An
+     * outbox that kept it re-sent it every poll, each send queuing another copy
+     * (27 copies in 100 s on a phone, 2026-10-16).
+     */
+    @Test
+    fun aHeldReplyIsSentOnceAndLeavesTheOutbox() = runTest {
+        val posts = mutableListOf<String>()
+        val api = api { request ->
+            val body = when (request.method) {
+                HttpMethod.Get -> """{"session":{"id":1,"title":"s","status":"running"},"live":{"idle":false,"sidecar_connected":true}}"""
+                else -> { posts += request.url.encodedPath; """{"status":"held","message_id":"h1","deliver_at":"2026-10-16T14:00:15.000Z"}""" }
+            }
+            respond(body, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+        val outbox = Outbox(MemoryStore(), api, backgroundScope)
+        outbox.enqueue(1, "once only")
+        advanceTimeBy(Outbox.POLL_MS * 10)
+        assertEquals(listOf("/api/notify/send"), posts, "a held message must never be sent again")
+        assertEquals(emptyList(), outbox.items.value)
+
+        outbox.enqueue(1, "sent now")
+        assertTrue(outbox.forceSend(outbox.items.value.single().id).accepted)
+        assertEquals(emptyList(), outbox.items.value, "send now: held is accepted too")
+    }
 }

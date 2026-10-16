@@ -480,6 +480,13 @@ data class SendResult(
     val deliverAtMs: Long? = null,
 ) {
     val delivered: Boolean get() = status == "delivered"
+
+    /**
+     * The server took the message: delivered, or held for the seat (it goes
+     * out by itself within 15 s). Either way it must never be sent again;
+     * sending a held one again queues a second copy.
+     */
+    val accepted: Boolean get() = status == "delivered" || status == "held"
 }
 
 /** Who a token belongs to and what it may do: scope is "api", "app" or "super". */
