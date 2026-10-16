@@ -25,7 +25,7 @@ import UserNotifications
  * Markdown as Claude's and the operator's bubbles; image: a server file path,
  * drawn in the operator's bubble as a stored image), notify {title, body}, log (core's last
  * 200 log lines), probe (the socket's heartbeat check), restarts (Settings → Restarts
- * in a window), autorestart {minutes} (the global idle minutes; never the switch), snapshot {path, window?} (a window drawn into a PNG by the app), quit.
+ * in a window), held {seat, id, action: cancel|now} (a held row's trash or Send now), autorestart {minutes} (the global idle minutes; never the switch), snapshot {path, window?} (a window drawn into a PNG by the app), quit.
  * Window ids from "windows" work with `screencapture -l <id>`, and with snapshot.
  */
 @MainActor
@@ -269,9 +269,11 @@ enum Harness {
                 // The Outbox as OutboxPanel draws it: Claude's queue, sent, held.
                 "outbox": s.outbox.map { r in
                     ["kind": "\(r.kind)", "text": String(r.text.prefix(80)), "label": r.label, "cancellable": r.cancellable,
-                     "interrupting": r.interrupting] as [String: Any]
+                     "interrupting": r.interrupting, "messageId": r.messageId ?? "",
+                     "trash": OutboxPanel.canCancel(r, nowMs: Int64(Date().timeIntervalSince1970 * 1000))] as [String: Any]
                 },
                 "backgroundRunning": s.seat?.backgroundRunning ?? 0,
+                "notice": s.notice ?? "",
                 "background": s.backgroundTasks.map { t in
                     ["id": t.id, "type": t.type, "status": t.status, "label": t.label, "command": t.command ?? "",
                      "elapsed": t.startedAt.map { elapsedLabel(fromMs: $0.int64Value, nowMs: Int64(Date().timeIntervalSince1970 * 1000)) } ?? ""] as [String: Any]
@@ -319,6 +321,14 @@ enum Harness {
             window.orderFront(nil)
             previewWindow = window
             return reply(["ok": true, "window": window.windowNumber])
+        case "held":
+            // A held row's buttons, as OutboxPanel's: action "cancel" (the trash) or "now" (Send now), on the seat
+            // joined by "seatagents"; the result shows in its outbox and notice.
+            guard let seat = seatArg(), let session = inspecting[seat], let id = json["id"] as? String else {
+                return reply(["error": "seat (joined with seatagents) and id: a held row's messageId"])
+            }
+            if json["action"] as? String == "now" { session.sendHeldNow(messageId: id) } else { session.cancelHeld(messageId: id) }
+            return reply(["ok": true])
         case "autorestart":
             // The global auto-restart's idle minutes, set as the Restarts stepper sets them (never its switch: the
             // operator turns auto-restart on). The server's answer lands in "log".
