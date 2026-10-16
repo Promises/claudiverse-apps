@@ -69,6 +69,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -78,6 +79,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -90,6 +92,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.claudiverse.core.nowMs
+import dev.claudiverse.core.cancellableNow
 import dev.claudiverse.core.OutboxRow
 import dev.claudiverse.core.answerMap
 import dev.claudiverse.core.clipboardText
@@ -464,6 +468,14 @@ private fun RestartSeatDialog(plan: RestartPlan, onConfirm: (confirmProtected: B
 @Composable
 private fun QueuedList(rows: List<OutboxRow>, onSendNow: (OutboxRow) -> Unit, onRemove: (OutboxRow) -> Unit) {
     if (rows.isEmpty()) return
+    // A row the server holds can be taken back until it goes to the seat: tick so its ✕ greys on time.
+    val serverHeld = rows.any { it.kind == OutboxRow.Kind.SERVER_HELD }
+    val now by produceState(nowMs(), serverHeld) {
+        while (serverHeld) {
+            value = nowMs()
+            delay(500)
+        }
+    }
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
             Text("Queued — sends when the seat goes idle", style = MaterialTheme.typography.labelSmall)
@@ -475,7 +487,7 @@ private fun QueuedList(rows: List<OutboxRow>, onSendNow: (OutboxRow) -> Unit, on
                     IconButton(onClick = { onRemove(r) }) {
                         // Only a held message can be taken back; the others say why not when tapped.
                         Icon(Icons.Filled.Close, contentDescription = "Remove",
-                            tint = if (r.cancellable) LocalContentColor.current else MaterialTheme.colorScheme.outlineVariant)
+                            tint = if (cancellableNow(r, now)) LocalContentColor.current else MaterialTheme.colorScheme.outlineVariant)
                     }
                 }
             }

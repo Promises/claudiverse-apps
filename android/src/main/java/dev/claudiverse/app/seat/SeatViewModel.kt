@@ -1,5 +1,7 @@
 package dev.claudiverse.app.seat
 
+import dev.claudiverse.core.cancellableNow
+import dev.claudiverse.core.HeldMessage
 import dev.claudiverse.core.outboxView
 import dev.claudiverse.core.Sends
 import dev.claudiverse.core.QueuedPrompt
@@ -70,6 +72,8 @@ data class SeatUiState(
     val queued: List<QueuedMessage> = emptyList(),
     /** Claude's own queue on the seat, in the seat's order; empty from a seat whose mod does not list it. */
     val promptQueue: List<QueuedPrompt> = emptyList(),
+    /** Messages the server holds for the busy seat, at most 15 s each; empty from an older server. */
+    val held: List<HeldMessage> = emptyList(),
     /** The Outbox panel: Claude's queue, sent but not yet listed, then held (core's outboxView). */
     val outbox: List<OutboxRow> = emptyList(),
     /** The last thing the server said about a send, a question answer or a permission. */
@@ -218,11 +222,12 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
 
     private fun publishQueue() {
         val queue = feed.promptQueue
-        sends.onQueue(queue)
-        state.update { withOutbox(it.copy(promptQueue = queue)) }
+        val held = feed.held
+        sends.onQueue(queue, held)
+        state.update { withOutbox(it.copy(promptQueue = queue, held = held)) }
     }
 
-    private fun withOutbox(s: SeatUiState) = s.copy(outbox = outboxView(s.queued, s.promptQueue, sends.sent.value))
+    private fun withOutbox(s: SeatUiState) = s.copy(outbox = outboxView(s.queued, s.promptQueue, sends.sent.value, s.held))
 
     /**
      * Send: into Claude's own queue on the seat, to run when the current turn
@@ -492,14 +497,50 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
      */
     fun sendNowRow(row: OutboxRow) {
         val held = row.heldId
-        if (held != null) forceSend(held, interrupt = true) else interrupt()
+        val onServer = row.messageId.takeIf { row.kind == OutboxRow.Kind.SERVER_HELD }
+        when {
+            held != null -> forceSend(held, interrupt = true)
+            onServer != null -> sendHeldNow(onServer)
+            else -> interrupt()
+        }
     }
 
-    /** A queued row's remove: cancels a held message; one in Claude's queue cannot be taken back, so say so. */
+    /**
+     * A queued row's remove: cancels a message held in this app, or one the
+     * server still holds (until it goes to the seat); one in Claude's queue
+     * cannot be taken back, so say so.
+     */
     fun removeRow(row: OutboxRow) {
         val held = row.heldId
-        if (held != null && row.cancellable) unqueue(held)
-        else state.update { it.copy(notice = CANNOT_TAKE_BACK) }
+        val onServer = row.messageId.takeIf { row.kind == OutboxRow.Kind.SERVER_HELD }
+        when {
+            !cancellableNow(row, nowMs()) -> state.update { it.copy(notice = CANNOT_TAKE_BACK) }
+            held != null -> unqueue(held)
+            onServer != null -> cancelHeld(onServer)
+            else -> state.update { it.copy(notice = CANNOT_TAKE_BACK) }
+        }
+    }
+
+    /** Take back a message the server holds; once it has gone to the seat, say so. */
+    private fun cancelHeld(messageId: String) {
+        viewModelScope.launch {
+            val notice = runCatching { app.api.cancelHeld(messageId) }.fold(
+                onSuccess = { if (it == "too_late") CANNOT_TAKE_BACK else null },
+                onFailure = { "Not taken back: ${it.message}" },
+            )
+            state.update { it.copy(notice = notice) }
+        }
+    }
+
+    /** Send a message the server holds at once, interrupting the running turn. */
+    private fun sendHeldNow(messageId: String) {
+        viewModelScope.launch {
+            val notice = runCatching { app.api.sendHeldNow(messageId) }.fold(
+                onSuccess = { r -> if (r.delivered) { app.socket.checkAlive(); null } else "Not sent: ${r.hint ?: r.status}" },
+                onFailure = { "Not sent: ${it.message}" },
+            )
+            state.update { it.copy(notice = notice) }
+        }
     }
 
     private fun cast(event: String, payload: JsonObject, okNotice: String?): Boolean {
