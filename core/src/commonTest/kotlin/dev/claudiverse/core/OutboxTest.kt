@@ -47,7 +47,7 @@ class OutboxTest {
 
     @Test
     fun encodingRoundTrips() {
-        val list = listOf(QueuedMessage(3, 9, "line one\nline two", 42), QueuedMessage(4, 9, "now", 43, interrupt = true))
+        val list = listOf(QueuedMessage(3, 9, "line one\nline two", 42), QueuedMessage(4, 9, "now", 43, interrupt = true, clientSendId = "abc"))
         assertEquals(list, Outbox.decode(Outbox.encode(list)))
     }
 
@@ -158,5 +158,37 @@ class OutboxTest {
         outbox.enqueue(1, "sent now")
         assertTrue(outbox.forceSend(outbox.items.value.single().id).accepted)
         assertEquals(emptyList(), outbox.items.value, "send now: held is accepted too")
+    }
+
+    /**
+     * client_send_id: one per user action. A retry of it (the Outbox's) carries
+     * the same id, so the server answers it with the message it has; the same
+     * text sent again on purpose is a new action with a new id.
+     */
+    @Test
+    fun aRetryCarriesTheActionsIdAndARepeatGetsANewOne() = runTest {
+        val ids = mutableListOf<String?>()
+        var reachable = false
+        val api = api { request ->
+            val body = when (request.method) {
+                HttpMethod.Get -> """{"session":{"id":1,"title":"s","status":"running"},"live":{"idle":false,"sidecar_connected":true}}"""
+                else -> {
+                    val o = kotlinx.serialization.json.Json.parseToJsonElement((request.body as TextContent).text) as kotlinx.serialization.json.JsonObject
+                    ids += o.str("client_send_id")
+                    if (reachable) """{"status":"held","message_id":"h"}""" else """{"status":"error","error":"not connected"}"""
+                }
+            }
+            respond(body, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+        val outbox = Outbox(MemoryStore(), api, backgroundScope)
+        val sends = Sends(api, outbox, 1, backgroundScope)
+        sends.send("yes")
+        reachable = true
+        advanceTimeBy(Outbox.POLL_MS + 1)
+        assertEquals(2, ids.size)
+        assertTrue(ids[0] != null && ids[0] == ids[1], "the Outbox's retry is the same action: $ids")
+        sends.send("yes")
+        assertEquals(3, ids.size)
+        assertTrue(ids[2] != null && ids[2] != ids[0], "the same text sent again on purpose is a new action")
     }
 }

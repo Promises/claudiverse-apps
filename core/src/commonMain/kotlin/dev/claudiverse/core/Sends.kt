@@ -31,13 +31,15 @@ class Sends(private val api: Api, private val outbox: Outbox, private val seatId
     /** Send [text]; [interrupt] for Send now. Returns a notice for people, or null when it went through. */
     @Throws(CancellationException::class)
     suspend fun send(text: String, interrupt: Boolean = false): String? {
+        // This action's id: the send and any retry of it from the Outbox carry it.
+        val sendId = newSendId()
         if (outbox.items.value.any { it.seatId == seatId }) {
-            outbox.enqueue(seatId, text, interrupt)
+            outbox.enqueue(seatId, text, interrupt, sendId)
             return BEHIND_HELD
         }
         return try {
             // Force: a busy seat's message is held by the server (up to 15 s), never refused.
-            val r = api.send(seatId, text, force = true, interrupt = interrupt)
+            val r = api.send(seatId, text, force = true, interrupt = interrupt, clientSendId = sendId)
             when (r.status) {
                 "delivered", "held" -> {
                     r.messageId?.let { track(SentPrompt(it, text, interrupt, nowMs())) }
@@ -46,18 +48,18 @@ class Sends(private val api: Api, private val outbox: Outbox, private val seatId
                 "refused" -> "Not delivered: ${r.hint ?: r.status}"
                 "busy" -> {
                     // A server without the hold: the seat is mid-turn, so hold it here (the Outbox delivers it with force).
-                    outbox.enqueue(seatId, text, interrupt)
+                    outbox.enqueue(seatId, text, interrupt, sendId)
                     HELD_BUSY
                 }
                 else -> {
-                    outbox.enqueue(seatId, text, interrupt)
+                    outbox.enqueue(seatId, text, interrupt, sendId)
                     "$HELD_OFFLINE (${r.hint ?: r.status})"
                 }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            outbox.enqueue(seatId, text, interrupt)
+            outbox.enqueue(seatId, text, interrupt, sendId)
             "$HELD_OFFLINE (${e.message})"
         }
     }

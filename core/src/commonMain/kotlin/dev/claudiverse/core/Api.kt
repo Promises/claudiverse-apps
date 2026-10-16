@@ -161,13 +161,16 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
      * running turn so the message runs at once; it implies force. A server
      * without `force` support answers `busy`; a seat on a mod without
      * interrupt just queues it. A delivered message carries the id it has in
-     * the seat's queue ([SendResult.messageId]).
+     * the seat's queue ([SendResult.messageId]). [clientSendId]: see [newSendId].
      */
     @Throws(Exception::class)
-    suspend fun send(seatId: Long, content: String, force: Boolean = false, interrupt: Boolean = false): SendResult {
+    suspend fun send(seatId: Long, content: String, force: Boolean = false, interrupt: Boolean = false, clientSendId: String? = null): SendResult {
         val body = buildJsonObject {
             put("session_id", seatId)
             put("content", content)
+            // One id per user action, the same on every retry: the server answers a retry
+            // with the message it already has, and a deliberate repeat of the text is new.
+            clientSendId?.let { put("client_send_id", it) }
             if (force || interrupt) put("force", true)
             if (interrupt) put("interrupt", true)
         }

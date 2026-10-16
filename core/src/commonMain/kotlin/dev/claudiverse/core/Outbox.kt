@@ -18,7 +18,15 @@ import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
 /** A message held in this app until its seat can take it; [interrupt]: sent as Send now. */
-data class QueuedMessage(val id: Long, val seatId: Long, val text: String, val queuedAt: Long, val interrupt: Boolean = false)
+data class QueuedMessage(
+    val id: Long,
+    val seatId: Long,
+    val text: String,
+    val queuedAt: Long,
+    val interrupt: Boolean = false,
+    /** The user action's id ([newSendId]), sent on every try so the server never takes it twice. */
+    val clientSendId: String? = null,
+)
 
 /** Where the queue is kept between runs: SharedPreferences on Android, UserDefaults on macOS. */
 interface OutboxStore {
@@ -45,9 +53,9 @@ class Outbox(private val store: OutboxStore, private val api: Api, private val s
     }
 
     @OptIn(ExperimentalTime::class)
-    fun enqueue(seatId: Long, text: String, interrupt: Boolean = false) {
+    fun enqueue(seatId: Long, text: String, interrupt: Boolean = false, clientSendId: String = newSendId()) {
         val id = (state.value.maxOfOrNull { it.id } ?: 0) + 1
-        update { it + QueuedMessage(id, seatId, text, Clock.System.now().toEpochMilliseconds(), interrupt) }
+        update { it + QueuedMessage(id, seatId, text, Clock.System.now().toEpochMilliseconds(), interrupt, clientSendId) }
         startDraining()
     }
 
@@ -61,7 +69,7 @@ class Outbox(private val store: OutboxStore, private val api: Api, private val s
     @Throws(Exception::class)
     suspend fun forceSend(id: Long, interrupt: Boolean = false): SendResult {
         val msg = state.value.firstOrNull { it.id == id } ?: return SendResult("error", "no longer held")
-        val result = api.send(msg.seatId, msg.text, force = true, interrupt = interrupt || msg.interrupt)
+        val result = api.send(msg.seatId, msg.text, force = true, interrupt = interrupt || msg.interrupt, clientSendId = msg.clientSendId)
         if (result.accepted) remove(id)
         return result
     }
@@ -81,7 +89,7 @@ class Outbox(private val store: OutboxStore, private val api: Api, private val s
             val (seat, live) = api.seat(seatId)
             // A seat that has ended will never go idle: its queue is dead.
             if (seat.status != "running" || live?.sidecarConnected == false) return
-            val r = api.send(seatId, msg.text, force = true, interrupt = msg.interrupt)
+            val r = api.send(seatId, msg.text, force = true, interrupt = msg.interrupt, clientSendId = msg.clientSendId)
             // A server that cannot force answers busy until the seat is idle. A held
             // message is the server's now: sending it again would queue another copy.
             if (r.accepted) remove(msg.id)
@@ -109,6 +117,7 @@ class Outbox(private val store: OutboxStore, private val api: Api, private val s
                     put("text", it.text)
                     put("at", it.queuedAt)
                     if (it.interrupt) put("interrupt", true)
+                    it.clientSendId?.let { c -> put("csid", c) }
                 }
             },
         ).toString()
@@ -120,8 +129,14 @@ class Outbox(private val store: OutboxStore, private val api: Api, private val s
                 val id = o.long("id") ?: return@mapNotNull null
                 val seat = o.long("seat") ?: return@mapNotNull null
                 val text = o.str("text") ?: return@mapNotNull null
-                QueuedMessage(id, seat, text, o.long("at") ?: 0, o.flag("interrupt"))
+                QueuedMessage(id, seat, text, o.long("at") ?: 0, o.flag("interrupt"), o.str("csid"))
             }
         }
     }
 }
+
+/**
+ * A fresh id for one user action's send (client_send_id): 32 hex digits.
+ * Every retry of that action carries the same one.
+ */
+fun newSendId(): String = (1..16).joinToString("") { kotlin.random.Random.nextInt(256).toString(16).padStart(2, '0') }
