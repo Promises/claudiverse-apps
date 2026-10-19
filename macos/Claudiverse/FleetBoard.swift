@@ -323,7 +323,7 @@ struct FleetBoardView: View {
     var body: some View {
         let roster = FleetRoster(fleet: fleet, seats: everySeat.isEmpty ? model.seats : everySeat, live: model.fleets.first { $0.fleet == fleet })
         VStack(spacing: 0) {
-            tabBar
+            tabBar(roster)
             Divider()
             boardBody(roster)
         }
@@ -379,14 +379,18 @@ struct FleetBoardView: View {
     }
 
     /// The fleet's tabs, the shown one picked; + adds one, and the menu renames, moves or deletes the shown one.
-    private var tabBar: some View {
+    private func tabBar(_ roster: FleetRoster) -> some View {
         HStack(spacing: 8) {
-            Picker("Tab", selection: $tabID) {
-                ForEach(board.tabs) { tab in Text(tab.name).tag(Optional(tab.id)) }
+            HStack(spacing: 2) {
+                ForEach(board.tabs) { tab in
+                    let states = tab.layout.tiles.map { Self.state(of: $0, roster, seats: model.seats, asking: { model.needsYou[$0] != nil }) }
+                    TabButton(name: tab.name, mark: TileState.mark(states), counts: TileState.counts(states), selected: tab.id == tabID) {
+                        tabID = tab.id
+                    }
+                }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
+            .padding(2)
+            .background(.quaternary.opacity(0.5), in: Capsule())
             Button { naming = (nil, "") } label: { Image(systemName: "plus") }
                 .buttonStyle(.borderless).help("New tab")
             Menu {
@@ -694,6 +698,96 @@ struct RowResizeHandle: View {
             .help("Row height and order")
         }
         .frame(height: max(gap, 10))
+    }
+}
+
+/// A tile's state, for its tab's mark: not running, idle, busy, or a seat asking for the operator (most urgent last).
+enum TileState: Int, Comparable {
+    case off, idle, busy, asking
+
+    static func < (a: TileState, b: TileState) -> Bool { a.rawValue < b.rawValue }
+
+    /// A tab's mark: its most urgent tile; nil for an empty tab.
+    static func mark(_ states: [TileState]) -> TileState? { states.max() }
+
+    /// "1 asking · 2 busy · 3 idle · 1 not running", most urgent first; "Empty" for no tiles.
+    static func counts(_ states: [TileState]) -> String {
+        let parts: [(TileState, String)] = [(.asking, "asking"), (.busy, "busy"), (.idle, "idle"), (.off, "not running")]
+        let text = parts.compactMap { state, word in
+            let n = states.filter { $0 == state }.count
+            return n == 0 ? nil : "\(n) \(word)"
+        }.joined(separator: " · ")
+        return text.isEmpty ? "Empty" : text
+    }
+
+    var color: Color {
+        switch self {
+        case .off: Theme.muted
+        case .idle: Theme.good
+        case .busy: Theme.busy
+        case .asking: Theme.attention
+        }
+    }
+}
+
+extension FleetBoardView {
+    /// What a tile shows now, found as its tile finds its seat: a member's seat, or the seat a busy runner works in.
+    static func state(of tile: BoardLayout.Tile, _ roster: FleetRoster, seats: [Seat], asking: (Int64) -> Bool) -> TileState {
+        func of(_ seat: Seat) -> TileState {
+            TileState.seat(running: seat.status == "running", busy: seat.activity == "busy", asking: asking(seat.id))
+        }
+        switch tile {
+        case .member(let title):
+            if let declared = roster.declared[title] {
+                guard let id = declared.seat?.int64Value, let seat = roster.seat(id: id) ?? seats.first(where: { $0.id == id }) else { return .off }
+                return of(seat)
+            }
+            return roster.member(title).map(of) ?? .off
+        case .runner(let slot):
+            guard let runner = roster.live[slot] else { return .off }
+            return TileState.runner(status: runner.status, seat: roster.seat(titled: runner.seat).map(of))
+        }
+    }
+}
+
+extension TileState {
+    /// A seat: asking for the operator above all, then busy or idle while it runs; a stopped one is off.
+    static func seat(running: Bool, busy: Bool, asking: Bool) -> TileState {
+        if asking { return .asking }
+        guard running else { return .off }
+        return busy ? .busy : .idle
+    }
+
+    /// A runner space: busy (or its seat's state when that is more urgent), idle, or off (halted, missing).
+    static func runner(status: String, seat: TileState?) -> TileState {
+        switch status {
+        case "busy": max(seat ?? .busy, .busy)
+        case "idle": .idle
+        default: .off
+        }
+    }
+}
+
+/// One tab in a board's tab bar: its name, and a dot for its most urgent tile (hover for the counts).
+private struct TabButton: View {
+    let name: String
+    let mark: TileState?
+    let counts: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Circle().fill(mark?.color ?? .clear).frame(width: 7, height: 7)
+                Text(name).fontWeight(selected ? .semibold : .regular)
+            }
+            .padding(.horizontal, 10).padding(.vertical, 3)
+            .background(selected ? Theme.accent.opacity(0.25) : .clear, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(counts)
     }
 }
 
