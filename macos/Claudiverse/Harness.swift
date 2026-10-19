@@ -17,7 +17,7 @@ import UserNotifications
  *   harness.sh '{"cmd":"state"}'
  *   harness.sh '{"cmd":"select","seat":204013}'
  *
- * Commands: state, windows {onscreen?}, section {name}, select {seat}, board {fleet},
+ * Commands: state, windows {onscreen?}, section {name}, select {seat}, board {fleet, tab?},
  * profile {id} (open it in the Profiles section; {"new": true} for a new one),
  * adopt {seat} (open the Adopt sheet for it),
  * window {seat}, send {seat, text, now?}, reveal {text} (scroll open transcripts to
@@ -130,6 +130,7 @@ enum Harness {
                 "selectedSeat": model.selectedSeat as Any,
                 "profiles": model.profiles.map { ["id": $0.id, "name": $0.name, "revision": $0.revision, "status": $0.status] },
                 "boardFleet": model.boardFleet as Any,
+                "boardTab": model.boardFleet.flatMap { f in model.shownBoardTab[f].flatMap { id in BoardTabs.peek(f).tabs.first { $0.id == id }?.name } } as Any,
                 "socketConnected": model.socketConnected,
                 "seats": model.seats.count,
                 "needsYou": model.needsYou.values.map { ["seat": $0.sessionId, "title": $0.seatTitle, "summary": $0.summary] },
@@ -172,7 +173,13 @@ enum Harness {
         case "board":
             guard let fleet = json["fleet"] as? String else { return reply(["error": "fleet: a name"]) }
             model.section = .seats
-            model.openBoard(fleet)
+            // tab: a tab's name, opened as a folded fleet's tab button opens it.
+            if let name = json["tab"] as? String {
+                guard let tab = BoardTabs.peek(fleet).tabs.first(where: { $0.name == name }) else { return reply(["error": "no tab \(name)"]) }
+                model.openBoard(fleet, tab: tab.id)
+            } else {
+                model.openBoard(fleet)
+            }
             return reply(["ok": true])
         case "window":
             guard let seat = seatArg(), let open = model.openSeatWindow else { return reply(["error": "seat: an id (and a window open to open it from)"]) }
