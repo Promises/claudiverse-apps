@@ -19,6 +19,7 @@ struct SignInView: View {
                 SecureField("Password", text: $password).textContentType(.password)
             }
             .formStyle(.grouped)
+            .themedList()
             .scrollDisabled(true)
             .frame(width: 420)
             .fixedSize(horizontal: false, vertical: true)

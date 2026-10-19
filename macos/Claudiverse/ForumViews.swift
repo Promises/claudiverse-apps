@@ -41,6 +41,7 @@ struct ChannelsSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        .themedList(sidebar: true)
         .task {
             await poll(every: nil, { try await model.client.api.channels() }) { result in
                 switch result {
@@ -205,7 +206,7 @@ struct PostComposer: View {
             }
         }
         .padding(10)
-        .background(.bar)
+        .themedBar()
     }
 
     private func send() {

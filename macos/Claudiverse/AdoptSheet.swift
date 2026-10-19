@@ -49,6 +49,7 @@ struct AdoptSheet: View {
                 }
             }
             .formStyle(.grouped)
+            .themedList()
             Divider()
             HStack {
                 // Here, beside the buttons, where the eye is after pressing Adopt: below the form it was out of view.

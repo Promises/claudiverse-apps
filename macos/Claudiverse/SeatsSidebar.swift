@@ -69,6 +69,7 @@ struct SeatsSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        .themedList(sidebar: true)
         // Double-click (or Return) opens the seat in a window of its own.
         .contextMenu(forSelectionType: Int64.self) { ids in
             if let id = ids.first {
@@ -90,7 +91,7 @@ struct SeatsSidebar: View {
             Text("\(list.shown) of \(list.total) · \(list.busy) busy" + (list.runnersHidden > 0 ? " · \(list.runnersHidden) runners hidden" : ""))
                 .font(.caption).foregroundStyle(.secondary).padding(8)
                 .frame(maxWidth: .infinity)
-                .background(.bar)
+                .themedBar()
         }
         .toolbar {
             ToolbarItem {

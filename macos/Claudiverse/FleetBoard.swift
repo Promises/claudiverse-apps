@@ -728,7 +728,7 @@ struct SeatTile: View {
                     .menuStyle(.borderlessButton).fixedSize()
             }
             .padding(8)
-            .background(.bar)
+            .themedBar()
             if let model {
                 TranscriptView(rows: model.state.rows, version: model.state.transcriptVersion, streaming: model.state.streaming, session: model.session)
                 Composer(seatId: seat.id, state: model.state, session: model.session)

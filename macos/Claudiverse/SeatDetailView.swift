@@ -131,7 +131,7 @@ struct SeatDetailView: View {
                     Button { model.session.dismissNotice() } label: { Image(systemName: "xmark") }.buttonStyle(.borderless)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(.thinMaterial)
+                .themedBar()
             }
             Composer(seatId: seatId, state: s, session: model.session)
         }
@@ -239,7 +239,7 @@ struct Composer: View {
             }
         }
         .padding(10)
-        .background(.bar)
+        .themedBar()
         .fileImporter(isPresented: $picking, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { addAttachments(urls) }
         }
@@ -404,7 +404,7 @@ struct AgentSwitcher: View {
             }
             .padding(.horizontal, 12).padding(.vertical, 6)
         }
-        .background(.bar)
+        .themedBar()
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Agents")
     }
@@ -524,7 +524,7 @@ struct BackgroundTasksBar: View {
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 6)
-        .background(.bar)
+        .themedBar()
     }
 
     private func row(_ task: ClaudiverseCore.BackgroundTask, now: Date) -> some View {

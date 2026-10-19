@@ -17,7 +17,7 @@ struct ClaudiverseApp: App {
                 .background(ListedInWindowsMenu())
                 .imageViewer()
                 .environment(model)
-                .tint(Theme.accent)
+                .themed()
         }
         .defaultSize(width: 1180, height: 780)
 
@@ -27,7 +27,7 @@ struct ClaudiverseApp: App {
                 SeatDetailView(seatId: seatId)
                     .imageViewer()
                     .environment(model)
-                    .tint(Theme.accent)
+                    .themed()
                     .frame(minWidth: 520, minHeight: 420)
             }
         }
@@ -39,7 +39,7 @@ struct ClaudiverseApp: App {
                 FleetBoardView(fleet: fleet, inOwnWindow: true)
                     .imageViewer()
                     .environment(model)
-                    .tint(Theme.accent)
+                    .themed()
                     .frame(minWidth: 640, minHeight: 480)
             }
         }
@@ -47,14 +47,14 @@ struct ClaudiverseApp: App {
 
         // Keeps the app, and its watch on seats asking for the operator, running with the window closed.
         MenuBarExtra {
-            MenuBarView().environment(model)
+            MenuBarView().environment(model).themed()
         } label: {
             Image(systemName: model.needsYou.isEmpty ? "sparkles" : "exclamationmark.bubble.fill")
         }
         .menuBarExtraStyle(.window)
 
         Settings {
-            SettingsView().environment(model).tint(Theme.accent)
+            SettingsView().environment(model).themed()
         }
     }
 }

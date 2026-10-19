@@ -27,6 +27,7 @@ struct TaskFiltersSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        .themedList(sidebar: true)
     }
 
     private func icon(_ f: TaskFilter) -> String {
@@ -167,6 +168,7 @@ struct PoolSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        .themedList(sidebar: true)
     }
 }
 

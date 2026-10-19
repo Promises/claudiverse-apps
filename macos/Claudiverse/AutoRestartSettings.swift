@@ -26,6 +26,7 @@ struct AutoRestartSettings: View {
             }
         }
         .formStyle(.grouped)
+        .themedList()
         // Read again once signed in: a window opened while the app starts would otherwise keep the first failure.
         .task(id: model.phase == .signedIn) { await load() }
     }

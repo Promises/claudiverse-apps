@@ -45,6 +45,7 @@ struct ProfilesSidebar: View {
                 }
             }
             .listStyle(.sidebar)
+            .themedList(sidebar: true)
             .contextMenu(forSelectionType: Int64.self) { ids in
                 if let id = ids.first, let profile = model.profiles.first(where: { $0.id == id }) {
                     Button(profile.isRunning ? "Rename and Restart…" : "Rename…") { renaming = RenameTarget(id: id) }
@@ -455,6 +456,7 @@ struct ProfileEditor: View {
             }
         }
         .formStyle(.grouped)
+        .themedList()
         .navigationTitle(profile?.name ?? "New profile")
         .navigationSubtitle(profile.map { "revision \($0.revision)" } ?? "")
         .toolbar {

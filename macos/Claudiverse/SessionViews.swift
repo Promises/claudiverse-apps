@@ -117,6 +117,7 @@ struct SessionInfoView: View {
             }
         }
         .formStyle(.grouped)
+        .themedList()
         .sheet(isPresented: $adopting) { if let seat = state.seat { AdoptSheet(seat: seat) } }
         .confirmationDialog("Stop \(state.seat?.label ?? "this seat")?", isPresented: $confirmStop) {
             Button("Stop on \(state.seat?.host ?? "its machine")", role: .destructive) { session.stop() }

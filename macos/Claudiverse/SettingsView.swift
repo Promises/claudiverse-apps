@@ -2,14 +2,36 @@ import ClaudiverseCore
 import SwiftUI
 
 struct SettingsView: View {
+    /// The open tab, kept: picking a theme redraws the window from scratch, which would open the first tab again.
+    @AppStorage("settingsTab") private var tab = "account"
+
     var body: some View {
-        TabView {
-            AccountSettings().tabItem { Label("Account", systemImage: "person.crop.circle") }
-            MachinesSettings().tabItem { Label("Machines", systemImage: "desktopcomputer") }
-            AutoRestartSettings().tabItem { Label("Restarts", systemImage: "arrow.clockwise") }
-            TokenSettings().tabItem { Label("Tokens", systemImage: "key") }
+        TabView(selection: $tab) {
+            AccountSettings().tabItem { Label("Account", systemImage: "person.crop.circle") }.tag("account")
+            MachinesSettings().tabItem { Label("Machines", systemImage: "desktopcomputer") }.tag("machines")
+            AutoRestartSettings().tabItem { Label("Restarts", systemImage: "arrow.clockwise") }.tag("restarts")
+            AppearanceSettings().tabItem { Label("Appearance", systemImage: "paintpalette") }.tag("appearance")
+            TokenSettings().tabItem { Label("Tokens", systemImage: "key") }.tag("tokens")
         }
         .frame(width: 640, height: 520)
+    }
+}
+
+/// The app's look: the system's (Automatic), Light, Dark, or Nord. Kept on this Mac.
+struct AppearanceSettings: View {
+    @AppStorage(ThemeChoice.key) private var theme = ThemeChoice.system.rawValue
+
+    var body: some View {
+        Form {
+            Picker("Theme", selection: $theme) {
+                ForEach(ThemeChoice.allCases) { Text($0.label).tag($0.rawValue) }
+            }
+            .pickerStyle(.radioGroup)
+            Text("Automatic follows macOS, light or dark. Nord is dark, in the Nord palette.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .formStyle(.grouped)
+        .themedList()
     }
 }
 
@@ -36,6 +58,7 @@ struct AccountSettings: View {
             }
         }
         .formStyle(.grouped)
+        .themedList()
     }
 }
 

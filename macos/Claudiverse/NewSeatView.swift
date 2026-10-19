@@ -100,6 +100,7 @@ struct NewSeatView: View {
                 }
             }
             .formStyle(.grouped)
+            .themedList()
 
             HStack {
                 if let error = s.spawnError { Text(error).foregroundStyle(Theme.bad).font(.callout).lineLimit(2) }
