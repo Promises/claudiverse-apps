@@ -386,6 +386,7 @@ struct FleetBoardView: View {
                 tabID = board.tabs.contains { $0.id == last } ? last : board.tabs[0].id
                 layout = board.layout(tabID)
                 loaded = true
+                model.boardTabs[fleet] = board
                 if !inOwnWindow { model.shownBoardTab[fleet] = tabID }
             }
         }
@@ -394,6 +395,8 @@ struct FleetBoardView: View {
             board.setLayout(tabID, new)
             board.save(fleet)
         }
+        // Every change to the tabs (a colour, a name, a tile moved), however made, for the seat list's folded row.
+        .onChange(of: board) { _, now in model.boardTabs[fleet] = now }
         .onChange(of: model.boardTabRequest) { _, request in
             // A tab picked from the seat list; only the main window's board follows it.
             guard !inOwnWindow, let request, request.fleet == fleet, board.tabs.contains(where: { $0.id == request.tab }) else { return }

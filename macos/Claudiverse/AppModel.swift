@@ -137,6 +137,13 @@ final class AppModel {
     /// The tab the main window's board shows, by fleet: what a folded fleet's row marks as picked.
     var shownBoardTab: [String: BoardTabs.Tab.ID] = [:]
 
+    /// Each fleet's tabs as its board last had them, in any window: a folded fleet's row draws these, since SwiftUI
+    /// does not redraw on a change to the defaults they are saved in.
+    var boardTabs: [String: BoardTabs] = [:]
+
+    /// A fleet's tabs: as a board has them, else as saved.
+    func tabs(of fleet: String) -> BoardTabs { boardTabs[fleet] ?? BoardTabs.peek(fleet) }
+
     /// Show a fleet's board in the main window; with [tab], on that tab.
     func openBoard(_ fleet: String, tab: BoardTabs.Tab.ID? = nil) {
         if let tab {

@@ -139,7 +139,7 @@ struct FoldedFleetRow: View {
 
     var body: some View {
         let roster = FleetRoster(fleet: fleet, seats: model.seats, live: model.fleets.first { $0.fleet == fleet })
-        let tabs = BoardTabs.peek(fleet).tabs
+        let tabs = model.tabs(of: fleet).tabs
         let marks = tabs.map { tab in tab.layout.tiles.map { FleetBoardView.state(of: $0, roster, seats: model.seats, asking: { model.needsYou[$0] != nil }) } }
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Circle().fill(TileState.mark(marks.flatMap { $0 })?.color ?? Theme.muted).frame(width: 8, height: 8)
