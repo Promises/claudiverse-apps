@@ -184,7 +184,11 @@ object TranscriptBuilder {
                 "user" -> {
                     val content = (m.obj("message")?.get("content") as? JsonPrimitive)?.takeIf { it.isString }?.content
                     val system = systemPrompt(m, content)
-                    if (system != null) {
+                    val local = localCommand(key, content ?: contentBlocks(m).filter { it.text("type") == "text" }.joinToString("\n") { it.text("text") })
+                    if (local != null) {
+                        // A slash command run at the seat (/exit, /model …): what was typed, and its output.
+                        local.item?.let(items::add)
+                    } else if (system != null) {
                         // Claude Code's own turn (a background task finishing, say): an event, not the operator.
                         val text = content ?: contentBlocks(m).filter { it.text("type") == "text" }.joinToString("\n") { it.text("text") }
                         if (text.isNotBlank()) items += TranscriptItem.Event(key, system, eventSummary(text), text)
@@ -214,6 +218,37 @@ object TranscriptBuilder {
             }
         }
         return items
+    }
+
+/** A local-command message; [item] is null when it shows nothing (Claude Code's caveat, empty output). */
+    private class LocalCommand(val item: TranscriptItem?)
+
+    private val CAVEAT = Regex("""^\s*<local-command-caveat>""")
+    private val COMMAND_START = Regex("""^\s*<command-(name|message)>""")
+    private val COMMAND_NAME = Regex("""<command-name>(.*?)</command-name>""", RegexOption.DOT_MATCHES_ALL)
+    private val COMMAND_ARGS = Regex("""<command-args>(.*?)</command-args>""", RegexOption.DOT_MATCHES_ALL)
+    private val COMMAND_OUTPUT = Regex("""^\s*<local-command-(stdout|stderr)>(.*?)</local-command-\1>\s*$""", RegexOption.DOT_MATCHES_ALL)
+
+    /**
+     * Claude Code's records of a slash command run at the seat: the caveat it
+     * writes for the model (dropped), the command as typed (shown as the
+     * operator's "/exit args"), and its output (an event, dropped when empty).
+     * Null for any other message.
+     */
+    private fun localCommand(key: String, text: String): LocalCommand? {
+        if (CAVEAT.containsMatchIn(text)) return LocalCommand(null)
+        // Only Claude Code's own record, which starts with the tags; a message merely quoting them is the operator's.
+        if (COMMAND_START.containsMatchIn(text)) COMMAND_NAME.find(text)?.let { name ->
+            val args = COMMAND_ARGS.find(text)?.groupValues?.get(1)?.trim().orEmpty()
+            val typed = (name.groupValues[1].trim() + if (args.isNotEmpty()) " $args" else "").trim()
+            return LocalCommand(typed.takeIf { it.isNotEmpty() }?.let { TranscriptItem.UserText(key, it, injected = false) })
+        }
+        COMMAND_OUTPUT.find(text)?.let { out ->
+            val body = out.groupValues[2].trim()
+            val label = if (out.groupValues[1] == "stderr") "Command error" else "Command output"
+            return LocalCommand(body.takeIf { it.isNotEmpty() }?.let { TranscriptItem.Event(key, label, eventSummary(it), it) })
+        }
+        return null
     }
 
     private val IMAGE_PLACEHOLDER = Regex("""\[Image #\d+]""")
