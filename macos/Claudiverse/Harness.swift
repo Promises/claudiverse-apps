@@ -25,7 +25,7 @@ import UserNotifications
  * Markdown as Claude's and the operator's bubbles; image: a server file path,
  * drawn in the operator's bubble as a stored image), notify {title, body}, log (core's last
  * 200 log lines), probe (the socket's heartbeat check), restarts (Settings → Restarts
- * in a window), foldedrow {fleet} (a folded fleet's row, in a window), held {seat, id, action: cancel|now} (a held row's trash or Send now), autorestart {minutes} (the global idle minutes; never the switch), snapshot {path, window?} (a window drawn into a PNG by the app), quit.
+ * in a window), tabcolor {fleet, tab, color} (a tab's colour, saved; replies with the old one), foldedrow {fleet} (a folded fleet's row, in a window), held {seat, id, action: cancel|now} (a held row's trash or Send now), autorestart {minutes} (the global idle minutes; never the switch), snapshot {path, window?} (a window drawn into a PNG by the app), quit.
  * Window ids from "windows" work with `screencapture -l <id>`, and with snapshot.
  */
 @MainActor
@@ -349,6 +349,15 @@ enum Harness {
                 }
             }
             return reply(["ok": true, "note": "sent; the server's answer is in log"])
+        case "tabcolor":
+            // Set a board tab's colour (color: a TabColor name, or none) in the saved tabs, as another window's board
+            // would; an open board reloads it. Replies with the colour it had, to put back.
+            guard let fleet = json["fleet"] as? String, let name = json["tab"] as? String else { return reply(["error": "fleet and tab"]) }
+            var tabs = BoardTabs.load(fleet)
+            guard let tab = tabs.tabs.first(where: { $0.name == name }) else { return reply(["error": "no tab \(name)"]) }
+            tabs.setColor(tab.id, (json["color"] as? String).flatMap(TabColor.init(rawValue:)))
+            tabs.save(fleet)
+            return reply(["ok": true, "was": tab.color?.rawValue ?? "none"])
         case "foldedrow":
             // A folded fleet's row in the seat list (its board's tabs), in a window: the sidebar itself does not
             // draw into snapshot.
