@@ -160,6 +160,44 @@ protocol BoardStore {
 
 extension UserDefaults: BoardStore {}
 
+/// A board tab's colour: Nord's Aurora and Frost, so it sits with the status colours in every theme.
+enum TabColor: String, Codable, CaseIterable, Identifiable {
+    case red, orange, yellow, green, teal, blue, purple
+
+    var id: String { rawValue }
+
+    var label: String { rawValue.capitalized }
+
+    var color: Color {
+        switch self {
+        case .red: Color(hex: 0xBF616A)
+        case .orange: Color(hex: 0xD08770)
+        case .yellow: Color(hex: 0xEBCB8B)
+        case .green: Color(hex: 0xA3BE8C)
+        case .teal: Color(hex: 0x8FBCBB)
+        case .blue: Color(hex: 0x5E81AC)
+        case .purple: Color(hex: 0xB48EAD)
+        }
+    }
+
+    /// The board under a coloured tab: a light wash, so tiles and text read as before.
+    static let boardTint = 0.10
+    /// A seat tile's header on a coloured tab: a stronger one, to tell the tab at a glance.
+    static let headerTint = 0.28
+}
+
+/// The colour of the board tab a tile is on, for its header; nil on an uncoloured tab.
+private struct BoardTintKey: EnvironmentKey {
+    static let defaultValue: Color? = nil
+}
+
+extension EnvironmentValues {
+    var boardTint: Color? {
+        get { self[BoardTintKey.self] }
+        set { self[BoardTintKey.self] = newValue }
+    }
+}
+
 /**
  * A fleet's board as tabs ("Main", "M1", "Runners"), each a layout of its
  * own; a tile may be on several. Kept per fleet on this Mac, under
@@ -170,6 +208,8 @@ struct BoardTabs: Codable, Equatable {
         var id = UUID()
         var name: String
         var layout = BoardLayout()
+        /// Its colour, tinting the tab and the board under it (one per worktree, say); nil for none.
+        var color: TabColor? = nil
     }
 
     var tabs: [Tab]
@@ -234,6 +274,10 @@ struct BoardTabs: Codable, Equatable {
         guard tabs.count > 1, let i = tabs.firstIndex(where: { $0.id == id }) else { return tabs[0].id }
         tabs.remove(at: i)
         return tabs[max(i - 1, 0)].id
+    }
+
+    mutating func setColor(_ id: Tab.ID, _ color: TabColor?) {
+        if let i = tabs.firstIndex(where: { $0.id == id }) { tabs[i].color = color }
     }
 
     /// Move a tab [by] places left (negative) or right, within the tabs.
@@ -384,7 +428,7 @@ struct FleetBoardView: View {
             HStack(spacing: 2) {
                 ForEach(board.tabs) { tab in
                     let states = tab.layout.tiles.map { Self.state(of: $0, roster, seats: model.seats, asking: { model.needsYou[$0] != nil }) }
-                    TabButton(name: tab.name, mark: TileState.mark(states), counts: TileState.counts(states), selected: tab.id == tabID) {
+                    TabButton(name: tab.name, color: tab.color?.color, mark: TileState.mark(states), counts: TileState.counts(states), selected: tab.id == tabID) {
                         tabID = tab.id
                     }
                 }
@@ -396,6 +440,16 @@ struct FleetBoardView: View {
             Menu {
                 if let tab = board.tabs.first(where: { $0.id == tabID }) {
                     Button("Rename “\(tab.name)”…") { naming = (tab.id, tab.name) }
+                    Menu("Colour") {
+                        Picker("Colour", selection: Binding(get: { tab.color }, set: { board.setColor(tab.id, $0); board.save(fleet) })) {
+                            Text("None").tag(TabColor?.none)
+                            ForEach(TabColor.allCases) { c in
+                                Label { Text(c.label) } icon: { Image(systemName: "circle.fill").foregroundStyle(c.color) }.tag(Optional(c))
+                            }
+                        }
+                        .pickerStyle(.inline)
+                        .labelsHidden()
+                    }
                     Button("Move Left") { board.move(tab.id, by: -1); board.save(fleet) }.disabled(board.tabs.first?.id == tab.id)
                     Button("Move Right") { board.move(tab.id, by: 1); board.save(fleet) }.disabled(board.tabs.last?.id == tab.id)
                     Divider()
@@ -408,7 +462,7 @@ struct FleetBoardView: View {
                 Image(systemName: "ellipsis.circle")
             }
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-            .help("Rename, move or delete this tab")
+            .help("Rename, colour, move or delete this tab")
             Spacer()
         }
         .padding(.horizontal, 12).padding(.vertical, 6)
@@ -436,7 +490,11 @@ struct FleetBoardView: View {
                 .padding(12)
             }
         }
+        .background(currentColor.map { $0.opacity(TabColor.boardTint) } ?? .clear)
+        .environment(\.boardTint, currentColor)
     }
+
+    private var currentColor: Color? { board.tabs.first { $0.id == tabID }?.color?.color }
 
     private func finishNaming() {
         guard let naming else { return }
@@ -771,6 +829,8 @@ extension TileState {
 /// One tab in a board's tab bar: its name, and a dot for its most urgent tile (hover for the counts).
 private struct TabButton: View {
     let name: String
+    /// The tab's own colour, or nil for none.
+    let color: Color?
     let mark: TileState?
     let counts: String
     let selected: Bool
@@ -783,11 +843,18 @@ private struct TabButton: View {
                 Text(name).fontWeight(selected ? .semibold : .regular)
             }
             .padding(.horizontal, 10).padding(.vertical, 3)
-            .background(selected ? Theme.accent.opacity(0.25) : .clear, in: Capsule())
+            .background(background, in: Capsule())
+            .overlay(Capsule().strokeBorder(selected ? (color ?? Theme.accent) : .clear, lineWidth: 1))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .help(counts)
+    }
+
+    /// A coloured tab always shows its colour, stronger when picked; an uncoloured one only when picked.
+    private var background: Color {
+        if let color { return color.opacity(selected ? 0.45 : 0.2) }
+        return selected ? Theme.accent.opacity(0.25) : .clear
     }
 }
 
@@ -799,6 +866,7 @@ struct SeatTile: View {
     @Environment(AppModel.self) private var app
     @Environment(\.openWindow) private var openWindow
     @Environment(\.scenePhase) private var phase
+    @Environment(\.boardTint) private var tint
     @State private var model: SeatModel?
 
     var body: some View {
@@ -822,6 +890,7 @@ struct SeatTile: View {
                     .menuStyle(.borderlessButton).fixedSize()
             }
             .padding(8)
+            .background(tint.map { $0.opacity(TabColor.headerTint) } ?? .clear)
             .themedBar()
             if let model {
                 TranscriptView(rows: model.state.rows, version: model.state.transcriptVersion, streaming: model.state.streaming, session: model.session)

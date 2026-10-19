@@ -92,4 +92,19 @@ final class BoardTabsTests: XCTestCase {
         let replaced = BoardTabs.load(fleet, store: store)
         XCTAssertEqual(BoardTabs.load(fleet, store: store), replaced)
     }
+
+    /// A tab's colour is kept; tabs saved before colours read as uncoloured.
+    func testATabKeepsItsColour() throws {
+        var tabs = BoardTabs()
+        let wt = tabs.add("worktree-b")
+        tabs.setColor(wt, .teal)
+        let back = BoardTabs.from(saved: try JSONEncoder().encode(tabs), single: nil)
+        XCTAssertEqual(back.tabs.map(\.color), [nil, .teal])
+        tabs.setColor(wt, nil)
+        XCTAssertNil(tabs.tabs[1].color)
+        let old = #"{"tabs":[{"id":"7D6C1D5E-3A43-4C55-9C26-0E8B5E2E1D11","name":"Main","layout":{"rows":[],"columnGap":12,"rowGap":12}}]}"#
+        let read = BoardTabs.from(saved: Data(old.utf8), single: nil)
+        XCTAssertEqual(read.tabs.map(\.name), ["Main"], "a save from before colours still reads")
+        XCTAssertNil(read.tabs[0].color)
+    }
 }
