@@ -386,6 +386,7 @@ struct FleetBoardView: View {
                 tabID = board.tabs.contains { $0.id == last } ? last : board.tabs[0].id
                 layout = board.layout(tabID)
                 loaded = true
+                if !inOwnWindow { model.shownBoardTab[fleet] = tabID }
             }
         }
         .onChange(of: layout) { _, new in
@@ -400,6 +401,7 @@ struct FleetBoardView: View {
         }
         .onChange(of: tabID) { _, id in
             layout = board.layout(id)
+            if !inOwnWindow { model.shownBoardTab[fleet] = id }
             if let id { BoardTabs.setLastTab(id, fleet) }
         }
         // The same board open in two windows: an edit in one shows in the other, so neither saves over it.

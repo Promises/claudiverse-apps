@@ -134,6 +134,9 @@ final class AppModel {
 
     private(set) var boardTabRequest: BoardTabRequest?
 
+    /// The tab the main window's board shows, by fleet: what a folded fleet's row marks as picked.
+    var shownBoardTab: [String: BoardTabs.Tab.ID] = [:]
+
     /// Show a fleet's board in the main window; with [tab], on that tab.
     func openBoard(_ fleet: String, tab: BoardTabs.Tab.ID? = nil) {
         if let tab {

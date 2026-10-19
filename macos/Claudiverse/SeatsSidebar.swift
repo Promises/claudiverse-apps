@@ -149,7 +149,7 @@ struct FoldedFleetRow: View {
                     HStack(spacing: 4) {
                         ForEach(Array(tabs.enumerated()), id: \.element.id) { i, tab in
                             TabButton(name: tab.name, color: tab.color?.color, mark: TileState.mark(marks[i]), counts: TileState.counts(marks[i]),
-                                      selected: model.boardFleet == fleet && BoardTabs.lastTab(fleet) == tab.id) {
+                                      selected: model.boardFleet == fleet && model.shownBoardTab[fleet] == tab.id) {
                                 model.openBoard(fleet, tab: tab.id)
                             }
                         }
