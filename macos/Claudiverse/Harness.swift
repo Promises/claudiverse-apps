@@ -25,7 +25,7 @@ import UserNotifications
  * Markdown as Claude's and the operator's bubbles; image: a server file path,
  * drawn in the operator's bubble as a stored image), notify {title, body}, log (core's last
  * 200 log lines), probe (the socket's heartbeat check), restarts (Settings → Restarts
- * in a window), held {seat, id, action: cancel|now} (a held row's trash or Send now), autorestart {minutes} (the global idle minutes; never the switch), snapshot {path, window?} (a window drawn into a PNG by the app), quit.
+ * in a window), foldedrow {fleet} (a folded fleet's row, in a window), held {seat, id, action: cancel|now} (a held row's trash or Send now), autorestart {minutes} (the global idle minutes; never the switch), snapshot {path, window?} (a window drawn into a PNG by the app), quit.
  * Window ids from "windows" work with `screencapture -l <id>`, and with snapshot.
  */
 @MainActor
@@ -342,6 +342,19 @@ enum Harness {
                 }
             }
             return reply(["ok": true, "note": "sent; the server's answer is in log"])
+        case "foldedrow":
+            // A folded fleet's row in the seat list (its board's tabs), in a window: the sidebar itself does not
+            // draw into snapshot.
+            guard let fleet = json["fleet"] as? String else { return reply(["error": "fleet: a fleet's name"]) }
+            let window = previewWindow ?? NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 80),
+                                                   styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.title = "Folded fleet preview"
+            window.contentView = NSHostingView(rootView: List { FoldedFleetRow(fleet: fleet, busy: 0) }.listStyle(.sidebar)
+                .frame(width: 320, height: 80).environment(model).themed())
+            window.orderFront(nil)
+            previewWindow = window
+            return reply(["ok": true, "window": window.windowNumber])
         case "snapshot":
             // A window drawn into a PNG at path, by the app itself: works where screencapture cannot (a locked screen,
             // a window on another Space). window: a number from "windows"; the frontmost normal window when left out.
