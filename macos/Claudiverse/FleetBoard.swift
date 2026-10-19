@@ -152,6 +152,108 @@ struct BoardLayout: Codable, Equatable {
     }
 }
 
+/// Where boards are kept: the app's defaults, or a test's stand-in.
+protocol BoardStore {
+    func data(forKey key: String) -> Data?
+    func set(_ value: Any?, forKey key: String)
+}
+
+extension UserDefaults: BoardStore {}
+
+/**
+ * A fleet's board as tabs ("Main", "M1", "Runners"), each a layout of its
+ * own; a tile may be on several. Kept per fleet on this Mac, under
+ * board3.<fleet>; the first time, the fleet's one board becomes "Main".
+ */
+struct BoardTabs: Codable, Equatable {
+    struct Tab: Codable, Equatable, Identifiable {
+        var id = UUID()
+        var name: String
+        var layout = BoardLayout()
+    }
+
+    var tabs: [Tab]
+
+    static let firstName = "Main"
+
+    init(tabs: [Tab] = [Tab(name: firstName)]) { self.tabs = tabs.isEmpty ? [Tab(name: Self.firstName)] : tabs }
+
+    /// Saved tabs, else [single] (the board from before tabs) as "Main", else one empty "Main".
+    static func from(saved: Data?, single: BoardLayout?) -> BoardTabs {
+        if let saved, let tabs = try? JSONDecoder().decode(BoardTabs.self, from: saved), !tabs.tabs.isEmpty { return tabs }
+        return BoardTabs(tabs: [Tab(name: firstName, layout: single ?? BoardLayout())])
+    }
+
+    /// The fleet's tabs. When none are saved (or the save is unreadable), the board from before tabs is saved
+    /// as "Main" at once: read again unsaved, it would be a new "Main" with a new id each time, and a board that
+    /// reloads on every change of the defaults would loop.
+    static func load(_ fleet: String, store: BoardStore = UserDefaults.standard) -> BoardTabs {
+        let saved = store.data(forKey: "board3.\(fleet)")
+        if let saved, let tabs = try? JSONDecoder().decode(BoardTabs.self, from: saved), !tabs.tabs.isEmpty { return tabs }
+        let tabs = from(saved: nil, single: BoardLayout.load(fleet))
+        tabs.save(fleet, store: store)
+        return tabs
+    }
+
+    func save(_ fleet: String, store: BoardStore = UserDefaults.standard) {
+        if let data = try? JSONEncoder().encode(self) { store.set(data, forKey: "board3.\(fleet)") }
+    }
+
+    /// The tab this Mac last showed for [fleet], when it still exists.
+    static func lastTab(_ fleet: String) -> Tab.ID? {
+        UserDefaults.standard.string(forKey: "board3.tab.\(fleet)").flatMap(UUID.init(uuidString:))
+    }
+
+    static func setLastTab(_ id: Tab.ID, _ fleet: String) { UserDefaults.standard.set(id.uuidString, forKey: "board3.tab.\(fleet)") }
+
+    func layout(_ id: Tab.ID?) -> BoardLayout { tabs.first { $0.id == id }?.layout ?? tabs[0].layout }
+
+    mutating func setLayout(_ id: Tab.ID?, _ layout: BoardLayout) {
+        if let i = tabs.firstIndex(where: { $0.id == id }) { tabs[i].layout = layout }
+    }
+
+    /// A new empty tab at the end, named [name] (trimmed), or "Tab 2", "Tab 3"… when that is empty or taken.
+    @discardableResult
+    mutating func add(_ name: String) -> Tab.ID {
+        let tab = Tab(name: unique(name))
+        tabs.append(tab)
+        return tab.id
+    }
+
+    /// Rename a tab; an empty or taken name changes nothing.
+    mutating func rename(_ id: Tab.ID, _ name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let i = tabs.firstIndex(where: { $0.id == id }), !name.isEmpty,
+              !tabs.contains(where: { $0.id != id && $0.name.caseInsensitiveCompare(name) == .orderedSame }) else { return }
+        tabs[i].name = name
+    }
+
+    /// Remove a tab, never the last one; returns the tab to show next (the one before it, or the new first).
+    @discardableResult
+    mutating func remove(_ id: Tab.ID) -> Tab.ID {
+        guard tabs.count > 1, let i = tabs.firstIndex(where: { $0.id == id }) else { return tabs[0].id }
+        tabs.remove(at: i)
+        return tabs[max(i - 1, 0)].id
+    }
+
+    /// Move a tab [by] places left (negative) or right, within the tabs.
+    mutating func move(_ id: Tab.ID, by: Int) {
+        guard let i = tabs.firstIndex(where: { $0.id == id }) else { return }
+        let j = min(max(i + by, 0), tabs.count - 1)
+        if i != j { tabs.insert(tabs.remove(at: i), at: j) }
+    }
+
+    private func unique(_ name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let taken = Set(tabs.map { $0.name.lowercased() })
+        if !trimmed.isEmpty && !taken.contains(trimmed.lowercased()) { return trimmed }
+        let base = trimmed.isEmpty ? "Tab" : trimmed
+        var n = 2
+        while taken.contains("\(base) \(n)".lowercased()) { n += 1 }
+        return "\(base) \(n)"
+    }
+}
+
 /**
  * The fleet as the board sees it: live from GET /api/fleets where it has
  * data, the seat list otherwise. Members are the fleet's declared ones (its
@@ -207,13 +309,109 @@ struct FleetBoardView: View {
     var inOwnWindow = false
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openBoardWindow
+    /// The shown tab's layout; every edit goes back into [board] and is saved.
     @State private var layout = BoardLayout()
+    @State private var board = BoardTabs()
+    @State private var tabID: BoardTabs.Tab.ID?
+    /// The tab name being typed: for a new tab (renaming nil), or for renaming one.
+    @State private var naming: (renaming: BoardTabs.Tab.ID?, name: String)?
+    @State private var confirmingDelete: BoardTabs.Tab?
     @State private var loaded = false
     /// Every seat, stopped ones too: the runner spaces are learnt from runner rows, which are mostly stopped.
     @State private var everySeat: [Seat] = []
 
     var body: some View {
         let roster = FleetRoster(fleet: fleet, seats: everySeat.isEmpty ? model.seats : everySeat, live: model.fleets.first { $0.fleet == fleet })
+        VStack(spacing: 0) {
+            tabBar
+            Divider()
+            boardBody(roster)
+        }
+        .navigationTitle("Fleet \(fleet)")
+        .navigationSubtitle("\(roster.memberTitles.count) members · \(roster.live.values.filter { $0.status == "busy" }.count) of \(roster.slots.count) runner spaces busy" + (roster.live.isEmpty ? " · no heartbeat yet" : ""))
+        .toolbar { toolbar(roster) }
+        .onAppear {
+            if !loaded {
+                board = BoardTabs.load(fleet)
+                let last = BoardTabs.lastTab(fleet)
+                tabID = board.tabs.contains { $0.id == last } ? last : board.tabs[0].id
+                layout = board.layout(tabID)
+                loaded = true
+            }
+        }
+        .onChange(of: layout) { _, new in
+            guard loaded, board.layout(tabID) != new else { return }
+            board.setLayout(tabID, new)
+            board.save(fleet)
+        }
+        .onChange(of: tabID) { _, id in
+            layout = board.layout(id)
+            if let id { BoardTabs.setLastTab(id, fleet) }
+        }
+        // The same board open in two windows: an edit in one shows in the other, so neither saves over it.
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+            guard loaded else { return }
+            let saved = BoardTabs.load(fleet)
+            guard saved != board else { return }
+            board = saved
+            if !board.tabs.contains(where: { $0.id == tabID }) { tabID = board.tabs[0].id }
+            if board.layout(tabID) != layout { layout = board.layout(tabID) }
+        }
+        .task {
+            while !Task.isCancelled {
+                if let seats = try? await model.client.api.seats(includeStopped: true) { everySeat = seats }
+                try? await Task.sleep(for: .seconds(10))
+            }
+        }
+        .alert(naming?.renaming == nil ? "New Tab" : "Rename Tab", isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
+            TextField("Name", text: Binding(get: { naming?.name ?? "" }, set: { naming?.name = $0 }))
+            Button(naming?.renaming == nil ? "Add" : "Rename") { finishNaming() }
+            Button("Cancel", role: .cancel) { naming = nil }
+        }
+        .confirmationDialog("Delete the tab \(confirmingDelete?.name ?? "")?", isPresented: Binding(get: { confirmingDelete != nil }, set: { if !$0 { confirmingDelete = nil } })) {
+            Button("Delete Tab", role: .destructive) {
+                if let tab = confirmingDelete { deleteTab(tab.id) }
+                confirmingDelete = nil
+            }
+        } message: {
+            Text("Its layout goes; the seats themselves are not touched.")
+        }
+    }
+
+    /// The fleet's tabs, the shown one picked; + adds one, and the menu renames, moves or deletes the shown one.
+    private var tabBar: some View {
+        HStack(spacing: 8) {
+            Picker("Tab", selection: $tabID) {
+                ForEach(board.tabs) { tab in Text(tab.name).tag(Optional(tab.id)) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            Button { naming = (nil, "") } label: { Image(systemName: "plus") }
+                .buttonStyle(.borderless).help("New tab")
+            Menu {
+                if let tab = board.tabs.first(where: { $0.id == tabID }) {
+                    Button("Rename “\(tab.name)”…") { naming = (tab.id, tab.name) }
+                    Button("Move Left") { board.move(tab.id, by: -1); board.save(fleet) }.disabled(board.tabs.first?.id == tab.id)
+                    Button("Move Right") { board.move(tab.id, by: 1); board.save(fleet) }.disabled(board.tabs.last?.id == tab.id)
+                    Divider()
+                    Button("Delete “\(tab.name)”…", role: .destructive) {
+                        if tab.layout.rows.isEmpty { deleteTab(tab.id) } else { confirmingDelete = tab }
+                    }
+                    .disabled(board.tabs.count < 2)
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .help("Rename, move or delete this tab")
+            Spacer()
+        }
+        .padding(.horizontal, 12).padding(.vertical, 6)
+    }
+
+    @ViewBuilder
+    private func boardBody(_ roster: FleetRoster) -> some View {
         ScrollView {
             if layout.rows.isEmpty {
                 ContentUnavailableView {
@@ -234,26 +432,22 @@ struct FleetBoardView: View {
                 .padding(12)
             }
         }
-        .navigationTitle("Fleet \(fleet)")
-        .navigationSubtitle("\(roster.memberTitles.count) members · \(roster.live.values.filter { $0.status == "busy" }.count) of \(roster.slots.count) runner spaces busy" + (roster.live.isEmpty ? " · no heartbeat yet" : ""))
-        .toolbar { toolbar(roster) }
-        .onAppear {
-            if !loaded {
-                layout = BoardLayout.load(fleet) ?? BoardLayout()
-                loaded = true
-            }
+    }
+
+    private func finishNaming() {
+        guard let naming else { return }
+        if let id = naming.renaming {
+            board.rename(id, naming.name)
+        } else {
+            tabID = board.add(naming.name)
         }
-        .onChange(of: layout) { _, new in new.save(fleet) }
-        // The same board open in two windows: an edit in one shows in the other, so neither saves over it.
-        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
-            if loaded, let saved = BoardLayout.load(fleet), saved != layout { layout = saved }
-        }
-        .task {
-            while !Task.isCancelled {
-                if let seats = try? await model.client.api.seats(includeStopped: true) { everySeat = seats }
-                try? await Task.sleep(for: .seconds(10))
-            }
-        }
+        board.save(fleet)
+        self.naming = nil
+    }
+
+    private func deleteTab(_ id: BoardTabs.Tab.ID) {
+        tabID = board.remove(id)
+        board.save(fleet)
     }
 
     @ViewBuilder
