@@ -107,4 +107,14 @@ final class BoardTabsTests: XCTestCase {
         XCTAssertEqual(read.tabs.map(\.name), ["Main"], "a save from before colours still reads")
         XCTAssertNil(read.tabs[0].color)
     }
+
+    /// The seat list reads a fleet's tabs as it draws: that read must never save (a save while drawing loops).
+    func testPeekNeverSaves() {
+        let store = MemoryStore()
+        let fleet = "ipsum-fleet-\(UUID().uuidString)"
+        XCTAssertEqual(BoardTabs.peek(fleet, store: store).tabs.map(\.name), ["Main"])
+        XCTAssertTrue(store.values.isEmpty, "nothing saved by a peek")
+        let saved = BoardTabs.load(fleet, store: store)
+        XCTAssertEqual(BoardTabs.peek(fleet, store: store), saved, "once saved, a peek reads the saved tabs")
+    }
 }

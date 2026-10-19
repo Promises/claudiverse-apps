@@ -227,6 +227,11 @@ struct BoardTabs: Codable, Equatable {
     /// The fleet's tabs. When none are saved (or the save is unreadable), the board from before tabs is saved
     /// as "Main" at once: read again unsaved, it would be a new "Main" with a new id each time, and a board that
     /// reloads on every change of the defaults would loop.
+    /// The fleet's tabs as saved, for showing them elsewhere (the seat list); unlike [load] it never saves.
+    static func peek(_ fleet: String, store: BoardStore = UserDefaults.standard) -> BoardTabs {
+        from(saved: store.data(forKey: "board3.\(fleet)"), single: BoardLayout.load(fleet))
+    }
+
     static func load(_ fleet: String, store: BoardStore = UserDefaults.standard) -> BoardTabs {
         let saved = store.data(forKey: "board3.\(fleet)")
         if let saved, let tabs = try? JSONDecoder().decode(BoardTabs.self, from: saved), !tabs.tabs.isEmpty { return tabs }
@@ -387,6 +392,11 @@ struct FleetBoardView: View {
             guard loaded, board.layout(tabID) != new else { return }
             board.setLayout(tabID, new)
             board.save(fleet)
+        }
+        .onChange(of: model.boardTabRequest) { _, request in
+            // A tab picked from the seat list; only the main window's board follows it.
+            guard !inOwnWindow, let request, request.fleet == fleet, board.tabs.contains(where: { $0.id == request.tab }) else { return }
+            tabID = request.tab
         }
         .onChange(of: tabID) { _, id in
             layout = board.layout(id)
@@ -826,8 +836,8 @@ extension TileState {
     }
 }
 
-/// One tab in a board's tab bar: its name, and a dot for its most urgent tile (hover for the counts).
-private struct TabButton: View {
+/// One tab in a board's tab bar (or a folded fleet's row): its name, and a dot for its most urgent tile (hover for the counts).
+struct TabButton: View {
     let name: String
     /// The tab's own colour, or nil for none.
     let color: Color?

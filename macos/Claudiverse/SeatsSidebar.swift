@@ -11,7 +11,15 @@ struct SeatsSidebar: View {
     @State private var hideRunner = true
     @State private var host: String?
     @State private var groupByFleet = true
-    @State private var collapsed: Set<String> = []
+    /// Folded fleets, kept across launches: a folded fleet shows its board's tabs, so it is a way to keep it.
+    @AppStorage("foldedFleets") private var foldedFleets = ""
+    private var collapsed: Set<String> { Set(foldedFleets.split(separator: "\n").map(String.init)) }
+
+    private func fold(_ key: String, _ on: Bool) {
+        var set = collapsed
+        if on { set.insert(key) } else { set.remove(key) }
+        foldedFleets = set.sorted().joined(separator: "\n")
+    }
 
     private var filters: SeatFilters {
         SeatFilters(text: text, runningOnly: !model.includeStopped, hideRunner: hideRunner, host: host, groupByFleet: groupByFleet)
@@ -32,13 +40,15 @@ struct SeatsSidebar: View {
                         ForEach(group.seats, id: \.id) { seat in
                             SeatRow(seat: seat, needsYou: model.needsYou[seat.id], queued: queuedCount(seat.id)).tag(seat.id)
                         }
+                    } else if groupByFleet, let fleet = group.fleet {
+                        FoldedFleetRow(fleet: fleet, busy: Int(group.busy))
                     }
                 } header: {
                     if groupByFleet {
                         HStack(spacing: 6) {
                             // The chevron folds the group; a fleet's name opens its board.
                             Button {
-                                if folded { collapsed.remove(key) } else { collapsed.insert(key) }
+                                fold(key, !folded)
                             } label: {
                                 Image(systemName: folded ? "chevron.right" : "chevron.down").frame(width: 12)
                             }
@@ -116,6 +126,39 @@ struct SeatsSidebar: View {
     private var filtersChanged: Bool { model.includeStopped || !hideRunner || host != nil || !groupByFleet }
 
     private func queuedCount(_ seat: Int64) -> Int { model.queued.filter { $0.seatId == seat }.count }
+}
+
+/**
+ * A folded fleet, the size of a seat's row: its board's tabs, each in its
+ * colour with a dot for its most urgent tile. A tab opens the board on it.
+ */
+struct FoldedFleetRow: View {
+    let fleet: String
+    let busy: Int
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let roster = FleetRoster(fleet: fleet, seats: model.seats, live: model.fleets.first { $0.fleet == fleet })
+        let tabs = BoardTabs.peek(fleet).tabs
+        let marks = tabs.map { tab in tab.layout.tiles.map { FleetBoardView.state(of: $0, roster, seats: model.seats, asking: { model.needsYou[$0] != nil }) } }
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Circle().fill(TileState.mark(marks.flatMap { $0 })?.color ?? Theme.muted).frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(roster.memberTitles.count) members · \(busy) busy").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 4) {
+                        ForEach(Array(tabs.enumerated()), id: \.element.id) { i, tab in
+                            TabButton(name: tab.name, color: tab.color?.color, mark: TileState.mark(marks[i]), counts: TileState.counts(marks[i]),
+                                      selected: model.boardFleet == fleet && BoardTabs.lastTab(fleet) == tab.id) {
+                                model.openBoard(fleet, tab: tab.id)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
 }
 
 struct SeatRow: View {

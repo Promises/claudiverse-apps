@@ -124,7 +124,23 @@ final class AppModel {
         selectedProfile = id
     }
 
-    func openBoard(_ fleet: String) {
+    /// A tab a fleet's board was asked to show (from a folded fleet in the seat list); the board on screen follows it.
+    struct BoardTabRequest: Equatable {
+        let fleet: String
+        let tab: BoardTabs.Tab.ID
+        /// Each request is new, so asking for the tab already asked for still switches back to it.
+        let id = UUID()
+    }
+
+    private(set) var boardTabRequest: BoardTabRequest?
+
+    /// Show a fleet's board in the main window; with [tab], on that tab.
+    func openBoard(_ fleet: String, tab: BoardTabs.Tab.ID? = nil) {
+        if let tab {
+            // A board opened now reads it as its last tab; one already on screen follows the request.
+            BoardTabs.setLastTab(tab, fleet)
+            boardTabRequest = BoardTabRequest(fleet: fleet, tab: tab)
+        }
         selectedSeat = nil
         boardFleet = fleet
     }
