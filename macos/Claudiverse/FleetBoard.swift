@@ -868,7 +868,7 @@ struct TabButton: View {
 
     /// A coloured tab always shows its colour, stronger when picked; an uncoloured one only when picked.
     private var background: Color {
-        if let color { return color.opacity(selected ? 0.45 : 0.2) }
+        if let color { return color.opacity(selected ? 0.6 : 0.35) }
         return selected ? Theme.accent.opacity(0.25) : .clear
     }
 }
