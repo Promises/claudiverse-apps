@@ -93,6 +93,9 @@ struct Themed: ViewModifier {
             if theme == .nord {
                 content
                     .foregroundStyle(Theme.nordText)
+                    // What `.background` paints with (a board's seat tiles, say): Nord's deep Polar Night, a step
+                    // darker than the window, as the system's dark look has them.
+                    .backgroundStyle(Theme.nordSidebar)
                     .background(Theme.nordWindow)
                     .toolbarBackground(Theme.nordBar, for: .windowToolbar)
                     .toolbarBackground(.visible, for: .windowToolbar)
