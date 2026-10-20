@@ -25,7 +25,7 @@ import UserNotifications
  * Markdown as Claude's and the operator's bubbles; image: a server file path,
  * drawn in the operator's bubble as a stored image), notify {title, body}, log (core's last
  * 200 log lines), probe (the socket's heartbeat check), restarts (Settings → Restarts
- * in a window), acceptall {title, on?} (a seat's accept-all switch in a window; set first when on is given), tabcolor {fleet, tab, color} (a tab's colour, saved; replies with the old one), foldedrow {fleet} (a folded fleet's row, in a window), held {seat, id, action: cancel|now} (a held row's trash or Send now), autorestart {minutes} (the global idle minutes; never the switch), snapshot {path, window?} (a window drawn into a PNG by the app), quit.
+ * in a window), acceptall {title, on?} (a seat's accept-all switch in a window; set first when on is given), tabcolor {fleet, tab, color} (a tab's colour, saved; replies with the old one), foldedrow {fleet} (a folded fleet's row, in a window), held {seat, id, action: cancel|now} (a held row's trash or Send now), autorestart {minutes} (the global idle minutes; never the switch), snapshot {path, window?, frame?} (a window drawn into a PNG by the app), quit.
  * Window ids from "windows" work with `screencapture -l <id>`, and with snapshot.
  */
 @MainActor
@@ -359,13 +359,18 @@ enum Harness {
                     catch { note("acceptall: not changed: \(error.message)") }
                 }
             }
-            let window = previewWindow ?? NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 60),
-                                                   styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            // In a toolbar, as a seat window has it (the tile's mark below); snapshot with frame: true takes the toolbar too.
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 120),
+                                  styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
             window.title = "Accept-all preview"
-            window.contentView = NSHostingView(rootView: AcceptAllSwitch(title: title).padding().frame(width: 520, height: 60).environment(model).themed())
+            let host = NSHostingController(rootView: NavigationStack {
+                AcceptAllSwitch(title: title, compact: true).frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .toolbar { ToolbarItem { AcceptAllSwitch(title: title) } }
+            }.frame(width: 560, height: 120).environment(model).themed())
+            host.sceneBridgingOptions = [.toolbars]
+            window.contentViewController = host
             window.orderFront(nil)
-            previewWindow = window
             return reply(["ok": true, "window": window.windowNumber])
         case "tabcolor":
             // Set a board tab's colour (color: a TabColor name, or none) in the saved tabs, as another window's board
@@ -395,7 +400,9 @@ enum Harness {
             guard let path = json["path"] as? String else { return reply(["error": "path: where to write the PNG"]) }
             let window = (json["window"] as? NSNumber).flatMap { n in NSApp.windows.first { $0.windowNumber == n.intValue } }
                 ?? NSApp.windows.first { $0.isVisible && $0.level == .normal }
-            guard let view = window?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+            // frame: true draws the whole window, toolbar included; else its content.
+            let frame = json["frame"] as? Bool == true
+            guard let view = frame ? window?.contentView?.superview : window?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
                 return reply(["error": "no window"])
             }
             view.cacheDisplay(in: view.bounds, to: rep)
