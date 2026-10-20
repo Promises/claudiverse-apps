@@ -7,7 +7,8 @@ import SwiftUI
  * accept-edits mode (plan approvals and questions still come here). Turning it
  * on takes a second click, on a red button that says what it does, in a
  * popover; a native dialog is easy to click through. When on, everyone sees it
- * in red; only an app or super sign-in can turn it off. [compact] (a board
+ * in red; only an app or super sign-in can turn it off (from the red button's
+ * popover). [compact] (a board
  * tile) shows a small red mark alone. Nothing shows for a server without
  * seat settings.
  */
@@ -24,7 +25,8 @@ struct AcceptAllSwitch: View {
     static let explain = "The server answers every permission prompt from this seat with yes, and puts it in accept-edits mode. Plan approvals and questions still come to you; deny rules still apply."
 
     var body: some View {
-        content
+        // A container that is always there: a task on an EmptyView (before the first read) never runs.
+        HStack(spacing: 0) { content }
             // Read on opening and every 30 s: it may be changed from the web or the phone.
             .task(id: title) {
                 confirming = false
@@ -48,21 +50,40 @@ struct AcceptAllSwitch: View {
                 .foregroundStyle(Theme.bad)
                 .help(Self.explain)
         case .badge:
-            Menu {
-                Button("Turn Off Accept All") { change(false) }.disabled(busy)
-            } label: {
+            // Its own red capsule: a prominent button greys out in a window that is not in front, and this must not.
+            Button { confirming = true } label: {
                 Label("Accept all on", systemImage: "exclamationmark.shield.fill").labelStyle(.titleAndIcon)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(Theme.bad, in: Capsule())
             }
-            .menuIndicator(.hidden)
-            .buttonStyle(.borderedProminent)
-            .tint(Theme.bad)
-            .fixedSize()
-            .help(error ?? Self.explain)
+            .buttonStyle(.plain)
+            .help(Self.explain)
+            .popover(isPresented: $confirming, arrowEdge: .bottom) { turnOff }
         case .arm:
             Button { confirming = true } label: { Label("Accept All…", systemImage: "shield") }
                 .help("Accept all: have the server answer this seat's permission prompts with yes")
                 .popover(isPresented: $confirming, arrowEdge: .bottom) { confirm }
         }
+    }
+
+    /// On: what it is doing, and the way to stop it.
+    private var turnOff: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Accept all is on", systemImage: "exclamationmark.shield.fill").font(.headline).foregroundStyle(Theme.bad)
+            Text(Self.explain).font(.callout).fixedSize(horizontal: false, vertical: true)
+            Text("Turning it off makes the seat ask again; its session stays in accept-edits mode until it restarts.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if let error { Text(error).font(.caption).foregroundStyle(Theme.bad) }
+            HStack {
+                Spacer()
+                Button("Turn Off Accept All") { change(false) }.keyboardShortcut(.defaultAction)
+            }
+            .disabled(busy)
+        }
+        .padding(16)
+        .frame(width: 340)
     }
 
     /// The second click: what it does, said on the button itself.
