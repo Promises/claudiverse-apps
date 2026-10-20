@@ -191,6 +191,7 @@ fun SeatScreen(vm: SeatViewModel, showInfo: Boolean, onShowInfo: (Boolean) -> Un
             lifecycle = ui.seat?.let { SeatLifecycle(it.label, it.host, it.canStop, it.canResume, ui.acting) },
             onStop = vm::stop, onResume = vm::resume,
             restartPlan = ui.restartPlan, restartPlanning = ui.restartPlanning, onPlanRestart = vm::planRestart, onRestart = vm::restart)
+        ui.acceptAll?.let { on -> AcceptAllSwitch(on, ui.canChangeSettings, ui.acceptAllSaving, onSet = vm::setAcceptAll) }
         if (showInfo) SessionInfoSheet(
             seat = ui.seat, live = ui.live, seatId = vm.seatId, socketConnected = ui.socketConnected,
             joined = ui.joined, effort = ui.effort, loadError = ui.loadError, onDismiss = { onShowInfo(false) },
@@ -309,6 +310,37 @@ private suspend fun LazyListState.scrollToEnd(count: Int) {
         withFrameNanos { }
         if (!canScrollForward) return
         scrollBy(100_000f)
+    }
+}
+
+/**
+ * The seat's accept-all, as the web panel has it: while on, the server says
+ * yes to every permission prompt this seat relays. Turning it on takes two
+ * taps ("Accept all…", then a red "Yes to every prompt from this seat");
+ * while on everyone sees a red "Accept all: ON", and an app sign-in can turn
+ * it off. A sign-in that may not change it sees nothing while it is off.
+ */
+@Composable
+private fun AcceptAllSwitch(on: Boolean, canChange: Boolean, saving: Boolean, onSet: (Boolean) -> Unit) {
+    var arming by remember(on) { mutableStateOf(false) }
+    if (!on && !canChange) return
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        when {
+            on -> {
+                Pill("Accept all: ON", StatusColors.bad)
+                if (canChange) TextButton(onClick = { onSet(false) }, enabled = !saving) { Text("Turn off") }
+            }
+            arming -> {
+                Button(onClick = { arming = false; onSet(true) }, enabled = !saving,
+                    colors = ButtonDefaults.buttonColors(containerColor = StatusColors.bad)) { Text("Yes to every prompt from this seat") }
+                TextButton(onClick = { arming = false }) { Text("Cancel") }
+            }
+            else -> TextButton(onClick = { arming = true }, enabled = !saving) { Text("Accept all…") }
+        }
     }
 }
 

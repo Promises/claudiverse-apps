@@ -98,6 +98,12 @@ data class SeatUiState(
     val agentThreads: Map<String, Transcript> = emptyMap(),
     /** What the seat runs in the background (shells, monitors, subagents, workflows), as it last reported. */
     val backgroundTasks: List<BackgroundTask> = emptyList(),
+    /** The seat's accept-all switch: null until read, and from a server without seat settings (the switch hides). */
+    val acceptAll: Boolean? = null,
+    /** This sign-in may change seat settings (app or super token). */
+    val canChangeSettings: Boolean = false,
+    /** A change to accept-all in flight. */
+    val acceptAllSaving: Boolean = false,
 )
 
 /**
@@ -175,6 +181,18 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
                 while (watched && isActive) {
                     refreshSeat()
                     delay(5_000)
+                }
+            }
+        }
+        viewModelScope.launch {
+            runCatching { app.api.me() }.getOrNull()?.let { me -> state.update { it.copy(canChangeSettings = me.canChangeSettings) } }
+        }
+        viewModelScope.launch {
+            // Accept-all, read again every 30 s while showing: another app may change it.
+            state.subscriptionCount.map { it > 0 }.distinctUntilChanged().collectLatest { watched ->
+                while (watched && isActive) {
+                    refreshAcceptAll()
+                    delay(ACCEPT_ALL_POLL_MS)
                 }
             }
         }
@@ -491,6 +509,34 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
 
     fun dismissNotice() = state.update { it.copy(notice = null) }
 
+    /** Read the seat's accept-all; keyed by its title, so not before the seat has loaded. */
+    private suspend fun refreshAcceptAll() {
+        val title = state.value.seat?.title ?: run { delay(1_000); state.value.seat?.title } ?: return
+        runCatching { app.api.seatSetting(title) }
+            .onSuccess { s -> state.update { it.copy(acceptAll = s?.acceptAll) } }
+            .onFailure { e -> if (e is CancellationException) throw e }
+    }
+
+    /**
+     * Turn accept-all on or off. On, the server answers every permission
+     * prompt this seat relays with allow (plan approvals and questions still
+     * come to the operator); the screen asks twice before turning it on.
+     */
+    fun setAcceptAll(on: Boolean) {
+        val title = state.value.seat?.title ?: return
+        state.update { it.copy(acceptAllSaving = true) }
+        viewModelScope.launch {
+            val result = runCatching { app.api.setAcceptAll(title, on) }
+            if (result.exceptionOrNull() is CancellationException) throw result.exceptionOrNull()!!
+            state.update { s ->
+                result.fold(
+                    onSuccess = { r -> s.copy(acceptAll = r.acceptAll, acceptAllSaving = false) },
+                    onFailure = { e -> s.copy(acceptAllSaving = false, notice = "Accept all not changed: ${e.message}") },
+                )
+            }
+        }
+    }
+
     /**
      * A queued row's Send now. Held in this app: deliver it now, interrupting
      * the running turn. In Claude's queue (or just sent): interrupt the running
@@ -569,6 +615,7 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
 }
 
 private const val RESTART_WAIT_MS = 5 * 60_000L
+private const val ACCEPT_ALL_POLL_MS = 30_000L
 
 internal const val CANNOT_TAKE_BACK = "Already in Claude's queue: Claude Code cannot take back a queued message"
 
