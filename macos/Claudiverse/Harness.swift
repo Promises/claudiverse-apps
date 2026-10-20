@@ -25,7 +25,7 @@ import UserNotifications
  * Markdown as Claude's and the operator's bubbles; image: a server file path,
  * drawn in the operator's bubble as a stored image), notify {title, body}, log (core's last
  * 200 log lines), probe (the socket's heartbeat check), restarts (Settings → Restarts
- * in a window), tabcolor {fleet, tab, color} (a tab's colour, saved; replies with the old one), foldedrow {fleet} (a folded fleet's row, in a window), held {seat, id, action: cancel|now} (a held row's trash or Send now), autorestart {minutes} (the global idle minutes; never the switch), snapshot {path, window?} (a window drawn into a PNG by the app), quit.
+ * in a window), acceptall {title, on?} (a seat's accept-all switch in a window; set first when on is given), tabcolor {fleet, tab, color} (a tab's colour, saved; replies with the old one), foldedrow {fleet} (a folded fleet's row, in a window), held {seat, id, action: cancel|now} (a held row's trash or Send now), autorestart {minutes} (the global idle minutes; never the switch), snapshot {path, window?} (a window drawn into a PNG by the app), quit.
  * Window ids from "windows" work with `screencapture -l <id>`, and with snapshot.
  */
 @MainActor
@@ -349,6 +349,24 @@ enum Harness {
                 }
             }
             return reply(["ok": true, "note": "sent; the server's answer is in log"])
+        case "acceptall":
+            // A seat's accept-all switch in a window, for title (with on: true or false, set first through the app's
+            // own call). Use a title no seat has: on, the server says yes to that seat's every permission prompt.
+            guard let title = json["title"] as? String else { return reply(["error": "title: a seat title (one no seat has, to try it)"]) }
+            if let on = json["on"] as? Bool {
+                Task {
+                    do { note("acceptall: \(title) now \(try await model.client.api.setAcceptAll(title: title, on: on).acceptAll)") }
+                    catch { note("acceptall: not changed: \(error.message)") }
+                }
+            }
+            let window = previewWindow ?? NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 60),
+                                                   styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.title = "Accept-all preview"
+            window.contentView = NSHostingView(rootView: AcceptAllSwitch(title: title).padding().frame(width: 520, height: 60).environment(model).themed())
+            window.orderFront(nil)
+            previewWindow = window
+            return reply(["ok": true, "window": window.windowNumber])
         case "tabcolor":
             // Set a board tab's colour (color: a TabColor name, or none) in the saved tabs, as another window's board
             // would; an open board reloads it. Replies with the colour it had, to put back.
