@@ -166,6 +166,9 @@ struct SeatDetailView: View {
     @ToolbarContentBuilder
     private func toolbar(_ model: SeatModel) -> some ToolbarContent {
         let s = model.state
+        ToolbarItem {
+            if let title = s.seat?.title { AcceptAllSwitch(title: title) }
+        }
         ToolbarItemGroup {
             if let seat = s.seat, seat.canResume {
                 Button { model.session.resume() } label: { Label("Resume", systemImage: "play.fill") }.disabled(s.acting)

@@ -54,6 +54,12 @@ final class AppModel {
         didSet { UserDefaults.standard.set(serverURL, forKey: "serverURL") }
     }
     private(set) var email: String?
+    /// The sign-in's scope ("super" for this Mac's own sign-in), nil until the server has said.
+    private(set) var scope: String?
+
+    /// May change app-only settings (a seat's accept-all): an app or super sign-in. Unknown counts as yes; the server
+    /// refuses a change anyway when it may not.
+    var canChangeSettings: Bool { scope.map { Me(email: email ?? "", scope: $0).canChangeSettings } ?? true }
 
     private(set) var seats: [Seat] = []
     private(set) var seatsError: String?
@@ -220,7 +226,9 @@ final class AppModel {
         }
         access.set(baseUrl: serverURL, token: token)
         do {
-            email = try await client.api.me().email
+            let me = try await client.api.me()
+            email = me.email
+            scope = me.scope
             begin()
         } catch {
             if error.httpStatus == 401 {
@@ -244,6 +252,7 @@ final class AppModel {
         await Task.detached { TokenStore.save(result.token) }.value
         access.set(baseUrl: base, token: result.token)
         self.email = result.email
+        scope = result.scope
         begin()
     }
 

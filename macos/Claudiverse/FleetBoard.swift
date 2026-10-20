@@ -893,6 +893,7 @@ struct SeatTile: View {
                     Text([caption, seat.host, seat.model].compactMap { $0 }.joined(separator: " · ")).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer()
+                AcceptAllSwitch(title: seat.title, compact: true)
                 if let needs = app.needsYou[seat.id] {
                     Image(systemName: "exclamationmark.bubble.fill").foregroundStyle(Theme.attention).help(needs.summary)
                 }
