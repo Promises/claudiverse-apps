@@ -433,6 +433,29 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
         return AutoRestartOverride.from(o.obj("auto_restart")) to o.obj("auto_restart_effective")?.let { AutoRestart.from(it) }
     }
 
+    // --- seat settings ---
+
+    /** The seats with accept-all on (GET /api/seat_settings lists only those). Any token. */
+    @Throws(Exception::class)
+    suspend fun seatSettings(): List<SeatSetting> = getList(listOf("seat_settings"), "seats").map(SeatSetting::from)
+
+    /** One seat's settings, by title; null from a server without seat settings (404), so the apps hide the switch. Any token. */
+    @Throws(Exception::class)
+    suspend fun seatSetting(title: String): SeatSetting? = try {
+        SeatSetting.from(call(HttpMethod.Get, listOf("seat_settings", title)))
+    } catch (e: ApiException) {
+        if (e.httpStatus == 404) null else throw e
+    }
+
+    /**
+     * Turn a seat's accept-all on or off (app or super token; any other gets
+     * 403 "changing a seat's settings is app-only"). The reply is the setting
+     * as it now is.
+     */
+    @Throws(Exception::class)
+    suspend fun setAcceptAll(title: String, on: Boolean): SeatSetting =
+        SeatSetting.from(call(HttpMethod.Put, listOf("seat_settings", title), json = buildJsonObject { put("accept_all", on) }))
+
     // --- seat profiles ---
 
     /** Every profile with its derived status. Any token. */

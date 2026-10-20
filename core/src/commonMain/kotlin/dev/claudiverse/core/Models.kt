@@ -489,8 +489,23 @@ data class SendResult(
     val accepted: Boolean get() = status == "delivered" || status == "held"
 }
 
+/**
+ * A seat's settings, kept by its title so they outlive restarts. [acceptAll]:
+ * the server answers every permission prompt the seat relays with yes (and
+ * puts the session in accept-edits mode); plan approvals and questions still
+ * come to the operator, and deny rules still decide first.
+ */
+data class SeatSetting(val title: String, val acceptAll: Boolean) {
+    companion object {
+        fun from(o: JsonObject) = SeatSetting(o.text("title"), o.flag("accept_all"))
+    }
+}
+
 /** Who a token belongs to and what it may do: scope is "api", "app" or "super". */
-data class Me(val email: String, val scope: String?)
+data class Me(val email: String, val scope: String?) {
+    /** An app or super sign-in: one that may change app-only settings (a seat's accept-all, say). */
+    val canChangeSettings: Boolean get() = scope == "app" || scope == "super"
+}
 
 /** A signed-in session: the token to keep (in the Keychain or the Android keystore) and who it is. */
 data class SignIn(val token: String, val scope: String, val email: String)
