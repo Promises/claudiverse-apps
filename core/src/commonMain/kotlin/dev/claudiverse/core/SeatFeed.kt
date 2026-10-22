@@ -30,6 +30,13 @@ class SeatFeed(private val maxMessages: Int = MAX_MESSAGES) {
     private val messages = LinkedHashMap<String, JsonObject>()
     private val livePermissions = LinkedHashMap<String, JsonObject>()
     /**
+     * Where each live permission came in: the id of the last row of its thread
+     * (main's, or its agent's) at that moment, null when there was none. Its
+     * card is drawn there, not at the end, so an answered one stays where it
+     * happened instead of under every later message.
+     */
+    private val liveAnchors = HashMap<String, String?>()
+    /**
      * The [messages] ids of what a resumed seat's replay carried from its
      * earlier rows. Ids, not transcript keys: a message without a uuid (a
      * stored operator prompt) is keyed by its position, which trimming shifts.
@@ -119,7 +126,12 @@ class SeatFeed(private val maxMessages: Int = MAX_MESSAGES) {
             }
         }
         "permission_request" -> {
-            livePermissions[payload.text("request_id")] = payload
+            val id = payload.text("request_id")
+            if (id !in livePermissions) {
+                val thread = payload.str("agent_id")?.let { agentRows[it] } ?: messages
+                liveAnchors[id] = thread.keys.lastOrNull()
+            }
+            livePermissions[id] = payload
             Change.TRANSCRIPT
         }
         "permission_resolved" -> {
@@ -143,10 +155,7 @@ class SeatFeed(private val maxMessages: Int = MAX_MESSAGES) {
     private fun build(rows: LinkedHashMap<String, JsonObject>, agentId: String?): Transcript {
         val all = rows.values.toList()
         val items = TranscriptBuilder.build(all, resolvedPermissions).toMutableList()
-        val inTranscript = items.filterIsInstance<TranscriptItem.Permission>().map { it.requestId }.toSet()
-        livePermissions.values
-            .filter { it.str("agent_id") == agentId && it.text("request_id") !in inTranscript }
-            .forEach { items += TranscriptBuilder.permissionFromEvent(it, it.text("request_id") !in resolvedPermissions) }
+        placeLivePermissions(items, rows, all, agentId)
         // The seat stamps every reply with the effort it ran at: the latest
         // one is the effort actually in use, whatever was last requested.
         if (agentId == null) all.lastOrNull { it.text("type") == "assistant" && "effort" in it }?.let { lastEffort = it.text("effort") }
@@ -170,6 +179,33 @@ class SeatFeed(private val maxMessages: Int = MAX_MESSAGES) {
         val excess = messages.size - maxMessages
         if (excess > 0) messages.keys.take(excess).forEach(messages::remove)
         return id
+    }
+
+    /**
+     * This thread's live permissions that the transcript does not carry, each
+     * after the items of the row it came in after. One whose row is no longer
+     * here (trimmed, or it came before any row): at the end while pending,
+     * dropped once answered, since there is nowhere it belongs.
+     */
+    private fun placeLivePermissions(items: MutableList<TranscriptItem>, rows: LinkedHashMap<String, JsonObject>, all: List<JsonObject>, agentId: String?) {
+        val inTranscript = items.filterIsInstance<TranscriptItem.Permission>().map { it.requestId }.toSet()
+        val keyOfRow = rows.keys.withIndex().associate { (i, id) -> id to TranscriptBuilder.messageKey(all[i], i) }
+        val placed = livePermissions.values
+            .filter { it.str("agent_id") == agentId && it.text("request_id") !in inTranscript }
+            .mapNotNull { p ->
+                val id = p.text("request_id")
+                val pending = id !in resolvedPermissions
+                val anchor = liveAnchors[id]?.let(keyOfRow::get)
+                val at = anchor?.let { key -> items.indexOfLast { Timeline.messageKey(it.key) == key } + 1 }?.takeIf { it > 0 }
+                when {
+                    at != null -> at to TranscriptBuilder.permissionFromEvent(p, pending)
+                    pending -> items.size to TranscriptBuilder.permissionFromEvent(p, true)
+                    else -> null
+                }
+            }
+        // Latest place first, so earlier indexes hold; cards at one place keep their arrival order.
+        placed.withIndex().sortedWith(compareByDescending<IndexedValue<Pair<Int, TranscriptItem>>> { it.value.first }.thenByDescending { it.index })
+            .forEach { (_, p) -> items.add(p.first, p.second) }
     }
 
     /** An agent's state or rows, or any other row an agent made (its permission request, say): not main's. */

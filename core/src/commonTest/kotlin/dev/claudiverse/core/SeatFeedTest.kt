@@ -54,11 +54,62 @@ class SeatFeedTest {
     @Test
     fun aLivePermissionIsPendingUntilResolved() {
         val feed = SeatFeed()
+        feed.onEvent("message", assistant("u1", "Running it"))
         feed.onEvent("permission_request", json("""{"request_id":"r1","tool_name":"Bash","input":{"command":"ls"}}"""))
-        val pending = feed.transcript().items.single() as TranscriptItem.Permission
+        val pending = feed.transcript().items.filterIsInstance<TranscriptItem.Permission>().single()
         assertTrue(pending.pending)
         feed.onEvent("permission_resolved", json("""{"request_id":"r1"}"""))
-        assertTrue(!(feed.transcript().items.single() as TranscriptItem.Permission).pending)
+        assertTrue(!feed.transcript().items.filterIsInstance<TranscriptItem.Permission>().single().pending)
+    }
+
+    /** Main's items as kinds and texts, in order: "A:hello" for a reply, "P:Bash" (pending) or "p:Bash" (answered) for a card. */
+    private fun shape(feed: SeatFeed) = feed.transcript().items.map {
+        when (it) {
+            is TranscriptItem.AssistantText -> "A:${it.text}"
+            is TranscriptItem.Permission -> (if (it.pending) "P:" else "p:") + it.toolName
+            else -> it::class.simpleName ?: "?"
+        }
+    }
+
+    /**
+     * A live card sits where it came in, not at the end: answered, it stays
+     * there under later messages, rather than pinned below them (an answered
+     * ExitPlanMode stuck at the bottom of a seat's transcript after a restart).
+     */
+    @Test
+    fun aLivePermissionStaysWhereItCameIn() {
+        val feed = SeatFeed()
+        feed.onEvent("replay", replay(assistant("u1", "before")))
+        feed.onEvent("permission_request", json("""{"request_id":"r1","tool_name":"ExitPlanMode","input":{}}"""))
+        assertEquals(listOf("A:before", "P:ExitPlanMode"), shape(feed), "pending, and nothing after it: at the end")
+        feed.onEvent("permission_resolved", json("""{"request_id":"r1"}"""))
+        feed.onEvent("message", assistant("u2", "after"))
+        assertEquals(listOf("A:before", "p:ExitPlanMode", "A:after"), shape(feed), "answered: where it was, under the later reply")
+        // A rejoin replays the rows again; the card keeps its place.
+        feed.onEvent("replay", replay(assistant("u1", "before"), assistant("u2", "after")))
+        assertEquals(listOf("A:before", "p:ExitPlanMode", "A:after"), shape(feed))
+    }
+
+    /** With nowhere to go (it came before any row, or its row was trimmed): shown at the end while pending, gone once answered. */
+    @Test
+    fun aLivePermissionWithNoPlaceShowsOnlyWhilePending() {
+        val feed = SeatFeed()
+        feed.onEvent("permission_request", json("""{"request_id":"r1","tool_name":"Bash","input":{"command":"ls"}}"""))
+        feed.onEvent("message", assistant("u1", "later"))
+        assertEquals(listOf("A:later", "P:Bash"), shape(feed))
+        feed.onEvent("permission_resolved", json("""{"request_id":"r1"}"""))
+        assertEquals(listOf("A:later"), shape(feed))
+    }
+
+    /** Two cards that came in after the same row keep their order. */
+    @Test
+    fun cardsAtOnePlaceKeepTheirOrder() {
+        val feed = SeatFeed()
+        feed.onEvent("message", assistant("u1", "x"))
+        feed.onEvent("permission_request", json("""{"request_id":"r1","tool_name":"Bash","input":{}}"""))
+        feed.onEvent("permission_request", json("""{"request_id":"r2","tool_name":"Edit","input":{}}"""))
+        feed.onEvent("message", assistant("u2", "y"))
+        assertEquals(listOf("A:x", "P:Bash", "P:Edit", "A:y"), shape(feed))
     }
 
     /** The effort shown is the latest reply's, and it holds when later replies carry none. */
