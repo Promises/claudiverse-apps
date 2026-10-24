@@ -279,6 +279,8 @@ fun SeatScreen(vm: SeatViewModel, showInfo: Boolean, onShowInfo: (Boolean) -> Un
         QueuedList(ui.outbox, onSendNow = vm::sendNowRow, onRemove = vm::removeRow)
         AttachmentChips(attachments, onRemove = { f -> attachments = attachments - f })
         Composer(
+            draft = vm.draft,
+            onDraft = vm::saveDraft,
             sending = ui.sending || ui.uploading,
             busy = ui.live?.idle == false || ui.outbox.isNotEmpty(),
             attached = attachments.size,
@@ -529,13 +531,19 @@ private fun QueuedList(rows: List<OutboxRow>, onSendNow: (OutboxRow) -> Unit, on
 
 @Composable
 private fun Composer(
+    draft: String, onDraft: (String) -> Unit,
     sending: Boolean, busy: Boolean, attached: Int, blocked: Boolean, onSend: (String) -> Unit, onAttach: () -> Unit,
 ) {
-    var text by rememberSaveable { mutableStateOf("") }
+    // Starts from the seat's saved draft, and saves every change: leaving for another seat keeps it.
+    var text by rememberSaveable { mutableStateOf(draft) }
+    fun change(t: String) {
+        text = t
+        onDraft(t)
+    }
     Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onAttach, enabled = !sending) { Icon(Icons.Filled.Add, contentDescription = "Attach files") }
         OutlinedTextField(
-            text, { text = it },
+            text, ::change,
             placeholder = {
                 Text(when {
                     attached > 0 -> "A note to go with ${if (attached == 1) "the file" else "the $attached files"} (optional)"
@@ -546,7 +554,7 @@ private fun Composer(
             modifier = Modifier.weight(1f), maxLines = 6,
         )
         if (sending) CircularProgressIndicator(Modifier.padding(8.dp).size(24.dp))
-        else IconButton(onClick = { onSend(text); text = "" }, enabled = !blocked && (text.isNotBlank() || attached > 0)) {
+        else IconButton(onClick = { onSend(text); change("") }, enabled = !blocked && (text.isNotBlank() || attached > 0)) {
             Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
         }
     }

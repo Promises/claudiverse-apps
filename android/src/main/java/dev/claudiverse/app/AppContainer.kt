@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.os.Build
 import android.util.Log
+import dev.claudiverse.app.seat.Drafts
 import dev.claudiverse.app.seat.PrefsOutboxStore
 import dev.claudiverse.app.seat.TranscriptImages
 import dev.claudiverse.app.update.AppUpdates
@@ -43,6 +44,8 @@ class AppContainer private constructor(context: Context) {
 
     val api = Api { settings.config.value.access }
     val outbox = Outbox(PrefsOutboxStore(context), api, scope)
+    /** What was typed to each seat but not sent. */
+    val drafts = Drafts(context)
     val socket = PhoenixSocket({ settings.config.value.access }, scope)
     val humanRequests = HumanRequests(api, socket, scope)
     /** Turns the app's VPN on away from the server's network and off on it. */

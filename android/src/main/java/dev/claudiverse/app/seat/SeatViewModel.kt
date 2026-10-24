@@ -509,6 +509,11 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
 
     fun dismissNotice() = state.update { it.copy(notice = null) }
 
+    /** What was typed to this seat but not sent, kept while the operator looks at other seats. */
+    val draft: String get() = app.drafts.get(seatId)
+
+    fun saveDraft(text: String) = app.drafts.set(seatId, text)
+
     /** Read the seat's accept-all; keyed by its title, so not before the seat has loaded. */
     private suspend fun refreshAcceptAll() {
         val title = state.value.seat?.title ?: run { delay(1_000); state.value.seat?.title } ?: return
