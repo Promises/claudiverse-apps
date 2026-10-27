@@ -15,14 +15,34 @@ data class QueuedPrompt(
     val text: String,
     /** When the seat queued it, ms; null when it did not say. */
     val queuedAt: Long?,
-    /** "queued", or "interrupting" while the seat aborts main's turn for it. Anything else reads as queued. */
+    /** "queued", "interrupting" while a Claude seat aborts main's turn for it, or "steering" while a pi seat's enters the run. Anything else reads as queued. */
     val state: String,
+    /** A pi seat's entry: "followUp" (after this run) or "steer" (at the next step); null for a Claude seat's. */
+    val kind: String? = null,
+    /** Where a pi seat's entry came from: app, cv, ping or terminal. */
+    val source: String? = null,
 ) {
     val interrupting: Boolean get() = state == INTERRUPTING
+
+    /** A pi seat's entry still waiting: it can be deleted, and a follow-up made to steer. A Claude seat's never. */
+    val editable: Boolean get() = kind != null && state == QUEUED
+    val canSteer: Boolean get() = editable && kind == FOLLOW_UP
+
+    /** Where it stands, for people. */
+    val label: String get() = when {
+        state == INTERRUPTING -> OutboxRow.INTERRUPTING
+        state == STEERING -> "entering the run"
+        kind == STEER -> "steers at the next step"
+        kind == FOLLOW_UP -> "after this run"
+        else -> OutboxRow.IN_QUEUE
+    }
 
     companion object {
         const val QUEUED = "queued"
         const val INTERRUPTING = "interrupting"
+        const val STEERING = "steering"
+        const val FOLLOW_UP = "followUp"
+        const val STEER = "steer"
 
         fun from(o: JsonObject): QueuedPrompt? {
             val id = o.str("id") ?: o.long("id")?.toString() ?: return null
@@ -30,7 +50,12 @@ data class QueuedPrompt(
                 id = id,
                 text = o.str("text").orEmpty(),
                 queuedAt = parseServerTime(o.str("queued_at")),
-                state = if (o.str("state") == INTERRUPTING) INTERRUPTING else QUEUED,
+                state = when (val s = o.str("state")) {
+                    INTERRUPTING, STEERING -> s
+                    else -> QUEUED
+                },
+                kind = o.str("kind"),
+                source = o.str("source"),
             )
         }
 
@@ -77,6 +102,10 @@ data class OutboxRow(
     val messageId: String? = null,
     /** When the server hands it to the seat, ms; after that it cannot be taken back. */
     val deliverAtMs: Long? = null,
+    /** A waiting pi-seat entry's id, for [Api.deleteQueueItem]; null when it cannot be deleted. */
+    val queueItemId: String? = null,
+    /** A waiting pi-seat follow-up: [Api.steerQueueItem] makes it steer the running run. */
+    val canSteer: Boolean = false,
 ) {
     enum class Kind {
         /** In Claude's queue on the seat. */
@@ -119,6 +148,8 @@ fun interruptAfterTooLate(messageId: String, queue: List<QueuedPrompt>): Boolean
 fun cancellableNow(row: OutboxRow, nowMs: Long): Boolean = when (row.kind) {
     OutboxRow.Kind.HELD -> true
     OutboxRow.Kind.SERVER_HELD -> row.deliverAtMs == null || nowMs < row.deliverAtMs
+    // A pi seat's waiting entry can be deleted; a Claude seat's queue never.
+    OutboxRow.Kind.QUEUED -> row.queueItemId != null
     else -> false
 }
 
@@ -140,7 +171,8 @@ fun outboxView(
     val listed = inQueue + onServer.map { it.id }
     return queue.map { q ->
         OutboxRow(OutboxRow.Kind.QUEUED, "queued:${q.id}", q.text, cancellable = false,
-            label = if (q.interrupting) OutboxRow.INTERRUPTING else OutboxRow.IN_QUEUE, interrupting = q.interrupting)
+            label = q.label, interrupting = q.interrupting,
+            queueItemId = q.id.takeIf { q.editable }, canSteer = q.canSteer)
     } + onServer.map { h ->
         OutboxRow(OutboxRow.Kind.SERVER_HELD, "server:${h.id}", h.text, cancellable = true,
             label = OutboxRow.HELD_ON_SERVER, messageId = h.id, deliverAtMs = h.deliverAt)
@@ -151,4 +183,17 @@ fun outboxView(
         OutboxRow(OutboxRow.Kind.HELD, "held:${h.id}", h.text, cancellable = true,
             label = if (h.interrupt) OutboxRow.HELD_INTERRUPT else OutboxRow.HELD, heldId = h.id)
     }
+}
+
+/**
+ * What to tell the operator after deleting or steering a pi seat's queued
+ * entry ([Api.deleteQueueItem], [Api.steerQueueItem]); null when it went
+ * through. "already": it was done before; "too_late": it entered a run.
+ */
+fun queueActionNotice(status: String, steer: Boolean): String? = when (status) {
+    "requested", "already" -> null
+    "too_late" -> if (steer) "Too late to steer: it has entered the run" else "Too late to delete: it has entered the run"
+    "not_found" -> "The seat no longer lists it"
+    "not_connected" -> "The seat is not connected"
+    else -> (if (steer) "Not steered: " else "Not deleted: ") + status
 }

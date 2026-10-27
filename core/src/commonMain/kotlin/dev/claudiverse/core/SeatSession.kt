@@ -428,6 +428,26 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
 
     fun unqueue(id: Long) = client.outbox.remove(id)
 
+    /** Delete a waiting entry of this pi seat's queue ([OutboxRow.queueItemId]). */
+    fun deleteQueued(itemId: String) = queueAction(itemId, steer = false)
+
+    /** Make a waiting follow-up in this pi seat's queue steer the running run ([OutboxRow.canSteer]). */
+    fun steerQueued(itemId: String) = queueAction(itemId, steer = true)
+
+    private fun queueAction(itemId: String, steer: Boolean) {
+        scope.launch {
+            val notice = try {
+                val status = if (steer) client.api.steerQueueItem(seatId, itemId) else client.api.deleteQueueItem(seatId, itemId)
+                queueActionNotice(status, steer)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                (if (steer) "Not steered: " else "Not deleted: ") + e.message
+            }
+            state.update { it.copy(notice = notice) }
+        }
+    }
+
     /** Take back a message the server holds; once it has gone to the seat, say so. */
     fun cancelHeld(messageId: String) {
         scope.launch {

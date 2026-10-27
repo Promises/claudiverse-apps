@@ -191,6 +191,29 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
         if (e.httpStatus == 404) "unknown" else throw e
     }
 
+    /**
+     * Delete a waiting entry of a pi seat's own queue (app token):
+     * "requested", "already", or "too_late" once it entered a run;
+     * "not_found" for one the seat no longer lists (404) and
+     * "not_connected" when the seat is not (409).
+     */
+    @Throws(Exception::class)
+    suspend fun deleteQueueItem(seatId: Long, itemId: String): String = queueItem(HttpMethod.Delete, seatId, itemId, null)
+
+    /** Make a waiting follow-up in a pi seat's queue steer the running run instead; answers as [deleteQueueItem]. */
+    @Throws(Exception::class)
+    suspend fun steerQueueItem(seatId: Long, itemId: String): String = queueItem(HttpMethod.Post, seatId, itemId, "steer")
+
+    private suspend fun queueItem(method: HttpMethod, seatId: Long, itemId: String, action: String?): String = try {
+        call(method, listOfNotNull("sessions", "$seatId", "queue", itemId, action)).str("status") ?: "requested"
+    } catch (e: ApiException) {
+        when (e.httpStatus) {
+            404 -> "not_found"
+            409 -> "not_connected"
+            else -> throw e
+        }
+    }
+
     /** Hand a held message to the seat at once, interrupting its running turn: "delivered", or "too_late" / "cancelled" when no longer held. */
     @Throws(Exception::class)
     suspend fun sendHeldNow(messageId: String): SendResult {
@@ -307,15 +330,22 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
      * since starting a seat can take up to 90 s.
      */
     @Throws(Exception::class)
-    suspend fun spawn(host: String, path: String, title: String, mode: String, prompt: String?, model: String? = null, pooled: Boolean? = null): String {
+    suspend fun spawn(host: String, path: String, title: String, mode: String, prompt: String?, model: String? = null, pooled: Boolean? = null): String =
+        spawn(host, path, title, SpawnRequest(mode, model, pooled), prompt)
+
+    /** Start a seat as [request] says; only what the machine's agent offers belongs in it ([spawnRequest]): an older one would get a 409. */
+    @Throws(Exception::class)
+    suspend fun spawn(host: String, path: String, title: String, request: SpawnRequest, prompt: String?): String {
         val body = buildJsonObject {
             put("path", path)
             put("title", title)
-            put("mode", mode)
+            put("mode", request.mode)
             prompt?.takeIf { it.isNotBlank() }?.let { put("prompt", it) }
-            // Only what the machine's agent offers (see spawnExtras): an older one would get a 409.
-            model?.let { put("model", it) }
-            pooled?.let { put("pooled", it) }
+            request.model?.let { put("model", it) }
+            request.pooled?.let { put("pooled", it) }
+            request.runtime?.let { put("runtime", it) }
+            request.effort?.let { put("effort", it) }
+            request.write?.let { w -> put("write", kotlinx.serialization.json.buildJsonArray { w.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } }) }
         }
         return post(listOf("hosts", host, "spawn"), body).requireStr("spawn_id")
     }

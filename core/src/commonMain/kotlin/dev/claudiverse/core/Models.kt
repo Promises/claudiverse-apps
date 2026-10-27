@@ -218,7 +218,11 @@ data class Host(
             mcp = o.array("mcp").strings(),
             lastSeenAt = o.str("last_seen_at"),
             spawn = o.obj("spawn")?.let {
-                SpawnChoices(it.array("options").strings(), it.flag("pool_only"), it.flag("pooled"), it.str("runtime"), it.str("version"))
+                SpawnChoices(
+                    it.array("options").strings(), it.flag("pool_only"), it.flag("pooled"), it.str("runtime"), it.str("version"),
+                    runtimes = it.array("runtimes").strings(),
+                    pi = it.obj("pi")?.let(PiChoices::from),
+                )
             },
         )
     }
@@ -236,9 +240,27 @@ data class SpawnChoices(
     /** The runtime a plain spawn runs, and its Claude Code version ("2.1.296"), when the agent says. */
     val runtime: String? = null,
     val version: String? = null,
+    /** What it can start (agent 0.19+): "claude", and "pi" where it has pi. Empty from an older agent. */
+    val runtimes: List<String> = emptyList(),
+    /** What a pi seat may pick there (agent 0.19+); null where it has no pi. */
+    val pi: PiChoices? = null,
 ) {
     val offersModel: Boolean get() = "model" in options
     val offersPool: Boolean get() = "pooled" in options
+    val offersRuntime: Boolean get() = "runtime" in options
+    val offersEffort: Boolean get() = "effort" in options
+    val offersWrite: Boolean get() = "write" in options
+}
+
+/** A machine's pi: its models (the default first) and the thinking levels a pi seat may start at. */
+data class PiChoices(val models: List<Choice>, val defaultModel: String?, val efforts: List<String>) {
+    companion object {
+        fun from(o: JsonObject) = PiChoices(
+            models = o.array("models").objects().mapNotNull { m -> m.str("id")?.let { Choice(it, m.str("label") ?: it) } },
+            defaultModel = o.str("default_model"),
+            efforts = o.array("efforts").strings(),
+        )
+    }
 }
 
 /** A runtime name in a machine's agent config, with the Claude Code version it runs and the mod it loads (null for a stock runtime, or an older agent). */

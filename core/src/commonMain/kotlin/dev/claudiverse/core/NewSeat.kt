@@ -30,6 +30,63 @@ fun spawnExtras(host: Host?, model: String?, pooled: Boolean?): SpawnExtras {
     )
 }
 
+/** The thinking level a pi seat starts at when none is chosen: what the GLM seats run at. */
+const val PI_DEFAULT_EFFORT = "high"
+
+/** What a pi seat may pick on [host], or null where it can start none (an agent before 0.19, or no pi models). */
+fun piChoices(host: Host?): PiChoices? {
+    val s = host?.spawn ?: return null
+    return s.pi?.takeIf { "pi" in s.runtimes && it.models.isNotEmpty() }
+}
+
+/** What a spawn sends besides its folder, title and first prompt. */
+data class SpawnRequest(
+    val mode: String,
+    val model: String? = null,
+    val pooled: Boolean? = null,
+    /** "pi" for a pi seat; null for Claude Code. */
+    val runtime: String? = null,
+    val effort: String? = null,
+    /** Folders a pi seat may write; null for its own folder only. */
+    val write: List<String>? = null,
+)
+
+/**
+ * The spawn request, as the web panel's Start a seat sends it, so both apps
+ * send the same. A pi seat (only where [piChoices]): mode auto (it has no
+ * permission modes; its limit is its folder), its model only if the machine
+ * lists it, a thinking level ([PI_DEFAULT_EFFORT] when none is chosen) only to
+ * an agent that offers effort, and no pool (it uses no Anthropic account).
+ * A Claude seat: its mode, and a model and pooling only as [spawnExtras].
+ */
+fun spawnRequest(
+    host: Host?,
+    mode: String,
+    model: String?,
+    pooled: Boolean?,
+    runtime: String? = null,
+    piModel: String? = null,
+    effort: String? = null,
+    write: List<String>? = null,
+): SpawnRequest {
+    val pi = piChoices(host)
+    if (runtime == PI && pi != null) {
+        val level = effort ?: PI_DEFAULT_EFFORT
+        return SpawnRequest(
+            mode = "auto",
+            model = piModel?.takeIf { id -> pi.models.any { it.id == id } },
+            runtime = PI,
+            effort = level.takeIf { host?.spawn?.offersEffort == true && it in pi.efforts },
+            write = write?.takeIf { it.isNotEmpty() && host?.spawn?.offersWrite == true },
+        )
+    }
+    val extras = spawnExtras(host, model, pooled)
+    return SpawnRequest(mode = mode, model = extras.model, pooled = extras.pooled)
+}
+
+/** The runtime name of a pi seat. */
+const val PI = "pi"
+
 data class NewSeatState(
     val hosts: List<Host> = emptyList(),
     val hostsLoading: Boolean = true,
@@ -51,6 +108,12 @@ data class NewSeatState(
     val model: String? = null,
     /** Use the server's account pool; null leaves the machine's default. */
     val pooled: Boolean? = null,
+    /** "pi" for a pi seat where the machine offers one ([piChoices]); null for Claude Code. */
+    val runtime: String? = null,
+    /** A pi seat's model; null for the machine's default (its first). */
+    val piModel: String? = null,
+    /** A pi seat's thinking level; null for [PI_DEFAULT_EFFORT]. */
+    val effort: String? = null,
     val prompt: String = "",
     val spawning: Boolean = false,
     val spawnError: String? = null,
@@ -157,6 +220,10 @@ class NewSeatSession internal constructor(private val client: ClaudiverseClient,
 
     fun setTitle(title: String) = state.update { it.copy(title = title, titleEdited = true, spawnError = null) }
     fun setMode(mode: String) = state.update { it.copy(mode = mode) }
+    /** "pi" or null (Claude Code). */
+    fun setRuntime(runtime: String?) = state.update { it.copy(runtime = runtime) }
+    fun setPiModel(model: String?) = state.update { it.copy(piModel = model) }
+    fun setEffort(effort: String?) = state.update { it.copy(effort = effort) }
     fun setPrompt(prompt: String) = state.update { it.copy(prompt = prompt) }
 
     /** Spawn; true once the server has accepted it (the outcome follows in spawns), false with spawnError set. */
@@ -167,7 +234,8 @@ class NewSeatSession internal constructor(private val client: ClaudiverseClient,
         val path = s.path ?: return false
         state.update { it.copy(spawning = true, spawnError = null) }
         return try {
-            client.spawns.spawn(host, path, s.title.trim(), s.mode, s.prompt.trim().ifEmpty { null })
+            val req = spawnRequest(s.hosts.firstOrNull { it.name == host }, s.mode, s.model, s.pooled, s.runtime, s.piModel, s.effort)
+            client.spawns.spawn(host, path, s.title.trim(), req, s.prompt.trim().ifEmpty { null })
             state.update { it.copy(spawning = false) }
             true
         } catch (e: CancellationException) {
