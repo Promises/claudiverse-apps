@@ -25,7 +25,7 @@ import UserNotifications
  * Markdown as Claude's and the operator's bubbles; image: a server file path,
  * drawn in the operator's bubble as a stored image), notify {title, body}, log (core's last
  * 200 log lines), probe (the socket's heartbeat check), restarts (Settings → Restarts
- * in a window), queue {seat, id, action: delete|steer} (a pi seat's queued row), newseat (the New seat sheet in a window), newseatdo {host?, path?, title?, runtime?, piModel?,
+ * in a window), stop {seat} (stop a seat joined with seatagents), queue {seat, id, action: delete|steer} (a pi seat's queued row), newseat (the New seat sheet in a window), newseatdo {host?, path?, title?, runtime?, piModel?,
  * effort?, spawn?} (steps on it, as its controls take them), acceptall {title, on?} (a seat's accept-all switch in a window; set first when on is given), tabcolor {fleet, tab, color} (a tab's colour, saved; replies with the old one), foldedrow {fleet} (a folded fleet's row, in a window), held {seat, id, action: cancel|now} (a held row's trash or Send now), autorestart {minutes} (the global idle minutes; never the switch), snapshot {path, window?} (a window drawn into a PNG by the app), quit.
  * Window ids from "windows" work with `screencapture -l <id>`, and with snapshot.
  */
@@ -353,6 +353,11 @@ enum Harness {
                 }
             }
             return reply(["ok": true, "note": "sent; the server's answer is in log"])
+        case "stop":
+            // Stop a seat joined with seatagents, as its Stop seat… button does (one the harness started, to clean up).
+            guard let seat = seatArg(), let session = inspecting[seat] else { return reply(["error": "seat (joined with seatagents)"]) }
+            session.stop()
+            return reply(["ok": true])
         case "queue":
             // A pi seat's queued row, as OutboxPanel's buttons take it: action "delete" (the trash) or "steer" (Send now).
             guard let seat = seatArg(), let session = inspecting[seat], let id = json["id"] as? String else {
