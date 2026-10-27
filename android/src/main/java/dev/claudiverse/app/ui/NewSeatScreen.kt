@@ -55,6 +55,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.claudiverse.core.piChoices
+import dev.claudiverse.core.PI_DEFAULT_EFFORT
+import dev.claudiverse.core.PI
 import dev.claudiverse.core.Host
 import dev.claudiverse.core.ModelCatalog
 import dev.claudiverse.core.FolderTab
@@ -264,7 +267,19 @@ private fun Details(ui: NewSeatState, vm: NewSeatViewModel) {
     val models by vm.models.collectAsStateWithLifecycle()
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         OutlinedTextField(ui.title, vm::setTitle, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val host = ui.hosts.firstOrNull { it.name == ui.host }
+        val pi = piChoices(host)
+        // A Kind choice only where the machine can start a pi seat (agent 0.19+ with pi models).
+        if (pi != null) Choices("Kind", listOf<String?>(null, PI), ui.runtime, { if (it == PI) "pi" else "Claude Code" }, vm::setRuntime)
+        if (pi != null && ui.runtime == PI) {
+            Choices("Model", pi.models.map { it.id }, ui.piModel ?: pi.models.first().id, { id -> pi.models.first { it.id == id }.label }, vm::setPiModel)
+            Choices("Thinking", pi.efforts, ui.effort ?: PI_DEFAULT_EFFORT, { it }, vm::setEffort)
+            Text(
+                "A pi seat has no permission modes: it writes only in its folder, and uses no Anthropic account. " +
+                    "pi uses the nearest thinking level the model has.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Permission mode", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             // The modes this machine allows; all four from an older agent.
             val allowed = ui.hosts.firstOrNull { it.name == ui.host }?.modes.orEmpty()
@@ -275,9 +290,23 @@ private fun Details(ui: NewSeatState, vm: NewSeatViewModel) {
                 }
             }
         }
-        ui.hosts.firstOrNull { it.name == ui.host }?.let { ModelAndPool(it, ui, vm, models) }
+        if (pi == null || ui.runtime != PI) host?.let { ModelAndPool(it, ui, vm, models) }
         OutlinedTextField(ui.prompt, vm::setPrompt, label = { Text("First prompt (optional)") },
             placeholder = { Text("What should this seat start on?") }, minLines = 3, modifier = Modifier.fillMaxWidth())
+    }
+}
+
+/** A labelled row of chips, one picked. */
+@Composable
+private fun <T> Choices(title: String, options: List<T>, chosen: T, label: (T) -> String, onPick: (T) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            options.forEach { o ->
+                FilterChip(o == chosen, { onPick(o) }, label = { Text(label(o)) },
+                    leadingIcon = if (o == chosen) ({ Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }) else null)
+            }
+        }
     }
 }
 

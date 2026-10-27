@@ -1,5 +1,6 @@
 package dev.claudiverse.app.seat
 
+import dev.claudiverse.core.queueActionNotice
 import dev.claudiverse.core.cancellableNow
 import dev.claudiverse.core.interruptAfterTooLate
 import dev.claudiverse.core.HeldMessage
@@ -550,9 +551,14 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
     fun sendNowRow(row: OutboxRow) {
         val held = row.heldId
         val onServer = row.messageId.takeIf { row.kind == OutboxRow.Kind.SERVER_HELD }
+        val piItem = row.queueItemId
         when {
             held != null -> forceSend(held, interrupt = true)
             onServer != null -> sendHeldNow(onServer)
+            // A pi seat's waiting follow-up: make it steer the running run.
+            piItem != null && row.canSteer -> queueAction(piItem, steer = true)
+            // A pi seat's steer already enters at the next step; one entering the run is on its way.
+            piItem != null -> state.update { it.copy(notice = "It already steers at the next step") }
             else -> interrupt()
         }
     }
@@ -569,7 +575,19 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
             !cancellableNow(row, nowMs()) -> state.update { it.copy(notice = CANNOT_TAKE_BACK) }
             held != null -> unqueue(held)
             onServer != null -> cancelHeld(onServer)
+            row.queueItemId != null -> queueAction(row.queueItemId!!, steer = false)
             else -> state.update { it.copy(notice = CANNOT_TAKE_BACK) }
+        }
+    }
+
+    /** Delete, or make steer, a waiting entry of this pi seat's own queue. */
+    private fun queueAction(itemId: String, steer: Boolean) {
+        viewModelScope.launch {
+            val notice = runCatching { if (steer) app.api.steerQueueItem(seatId, itemId) else app.api.deleteQueueItem(seatId, itemId) }.fold(
+                onSuccess = { queueActionNotice(it, steer) },
+                onFailure = { (if (steer) "Not steered: " else "Not deleted: ") + it.message },
+            )
+            state.update { it.copy(notice = notice) }
         }
     }
 

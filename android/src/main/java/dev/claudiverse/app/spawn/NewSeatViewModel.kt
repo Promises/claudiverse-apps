@@ -15,7 +15,7 @@ import dev.claudiverse.core.seatTitleFor
 import dev.claudiverse.core.FolderTab
 import dev.claudiverse.core.HostEvents
 import dev.claudiverse.core.NewSeatState
-import dev.claudiverse.core.spawnExtras
+import dev.claudiverse.core.spawnRequest
 import kotlinx.coroutines.flow.drop
 
 /**
@@ -110,6 +110,10 @@ class NewSeatViewModel(private val app: AppContainer) : ViewModel() {
     /** A model alias, or null for the machine's default. */
     fun setModel(model: String?) = state.update { it.copy(model = model) }
     fun setPooled(pooled: Boolean) = state.update { it.copy(pooled = pooled) }
+    /** "pi" for a pi seat where the machine offers one; null for Claude Code. */
+    fun setRuntime(runtime: String?) = state.update { it.copy(runtime = runtime) }
+    fun setPiModel(model: String?) = state.update { it.copy(piModel = model) }
+    fun setEffort(effort: String?) = state.update { it.copy(effort = effort) }
     fun setPrompt(prompt: String) = state.update { it.copy(prompt = prompt) }
 
     /** Spawn; on success the screen closes and the snackbar takes over. */
@@ -119,8 +123,9 @@ class NewSeatViewModel(private val app: AppContainer) : ViewModel() {
         val path = s.path ?: return
         state.update { it.copy(spawning = true, spawnError = null) }
         viewModelScope.launch {
-            val extras = spawnExtras(s.hosts.firstOrNull { it.name == host }, s.model, s.pooled)
-            runCatching { app.spawns.spawn(host, path, s.title.trim(), s.mode, s.prompt.trim().ifEmpty { null }, extras.model, extras.pooled) }
+            // What the web sends: a pi seat runs auto with its model and thinking, no pool.
+            val req = spawnRequest(s.hosts.firstOrNull { it.name == host }, s.mode, s.model, s.pooled, s.runtime, s.piModel, s.effort)
+            runCatching { app.spawns.spawn(host, path, s.title.trim(), req, s.prompt.trim().ifEmpty { null }) }
                 .onSuccess {
                     state.update { it.copy(spawning = false) }
                     onAccepted()
