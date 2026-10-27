@@ -4,11 +4,21 @@ import XCTest
 
 /// The Outbox panel, drawn as the old queued list: which rows can be cancelled, and what Send now says it does.
 final class OutboxPanelTests: XCTestCase {
-    private func row(_ kind: OutboxRow.Kind, held: Int64? = nil, deliverAt: Int64? = nil, interrupting: Bool = false) -> OutboxRow {
-        OutboxRow(kind: kind, key: "\(kind)", text: "hi", cancellable: held != nil || kind == .serverHeld,
+    private func row(_ kind: OutboxRow.Kind, held: Int64? = nil, deliverAt: Int64? = nil, interrupting: Bool = false,
+                     piItem: String? = nil, canSteer: Bool = false) -> OutboxRow {
+        OutboxRow(kind: kind, key: "\(kind)", text: "hi", cancellable: held != nil || kind == .serverHeld || piItem != nil,
                   label: held != nil ? OutboxRow.companion.HELD : OutboxRow.companion.IN_QUEUE,
                   heldId: held.map { KotlinLong(value: $0) }, interrupting: interrupting,
-                  messageId: kind == .serverHeld ? "m1" : nil, deliverAtMs: deliverAt.map { KotlinLong(value: $0) })
+                  messageId: kind == .serverHeld ? "m1" : nil, deliverAtMs: deliverAt.map { KotlinLong(value: $0) },
+                  queueItemId: piItem, canSteer: canSteer)
+    }
+
+    /// A pi seat's waiting entry can be taken back; its Send now steers (a follow-up), or is already steering.
+    func testAPiSeatsQueueCanBeEdited() {
+        XCTAssertTrue(OutboxPanel.canCancel(row(.queued, piItem: "q1", canSteer: true), nowMs: 0))
+        XCTAssertFalse(OutboxPanel.canCancel(row(.queued), nowMs: 0), "a Claude seat's queue still cannot")
+        XCTAssertEqual(OutboxPanel.sendNowHelp(row(.queued, piItem: "q1", canSteer: true)), "Steer: hand it to the running run at its next step")
+        XCTAssertEqual(OutboxPanel.sendNowHelp(row(.queued, piItem: "q1", canSteer: false)), "It already steers the running run")
     }
 
     /// The trash is on every row: a message held here always cancels, one the server holds until its 15 s are up,

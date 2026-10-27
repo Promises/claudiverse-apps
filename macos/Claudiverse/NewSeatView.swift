@@ -26,20 +26,29 @@ final class NewSeatModel {
 /**
  * Start a seat on a machine: pick the machine, a folder (a recent one, or
  * browse inside its allowed folders), the title (the folder's name until
- * edited), the permission mode and an optional first prompt. Once the server
+ * edited), the permission mode (or, for a pi seat where the machine runs
+ * them, its model and thinking level) and an optional first prompt. Once the server
  * accepts, the sheet closes and the banner follows the outcome.
  */
 struct NewSeatView: View {
+    static let piHint = "A pi seat has no permission modes: it writes only in its folder, and uses no Anthropic account. pi uses the nearest thinking level the model has."
+
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @State private var model: NewSeatModel?
+    /// Handed the sheet's session once made (the harness drives it with this).
+    var onSession: ((NewSeatSession) -> Void)? = nil
 
     var body: some View {
         Group {
             if let model { content(model) } else { ProgressView() }
         }
         .frame(width: 640, height: 640)
-        .onAppear { model = NewSeatModel(client: app.client) }
+        .onAppear {
+            let m = NewSeatModel(client: app.client)
+            model = m
+            onSession?(m.session)
+        }
         .onDisappear { model?.close() }
     }
 
@@ -89,13 +98,40 @@ struct NewSeatView: View {
                         Text(s.path.map { "Starts in \($0)" } ?? "Pick a folder inside the machine's allowed folders.")
                     }
 
-                    Section("Seat") {
+                    let pi = piChoices(host: s.hosts.first { $0.name == s.host })
+                    let isPi = pi != nil && s.runtime == PI
+                    Section {
                         TextField("Title", text: Binding(get: { s.title }, set: { session.setTitle(title: $0) }))
-                        Picker("Permission mode", selection: Binding(get: { s.mode }, set: { session.setMode(mode: $0) })) {
-                            ForEach(SessionChoices.shared.modes, id: \.id) { Text($0.label).tag($0.id) }
+                        if let pi {
+                            // Only where the machine runs pi seats (agent 0.19 with pi models).
+                            Picker("Kind", selection: Binding(get: { s.runtime == PI ? PI : "" }, set: { session.setRuntime(runtime: $0.isEmpty ? nil : $0) })) {
+                                Text("Claude Code").tag("")
+                                Text("pi").tag(PI)
+                            }
+                            .pickerStyle(.segmented)
+                            if isPi {
+                                Picker("Model", selection: Binding(get: { s.piModel ?? pi.defaultModel ?? pi.models.first?.id ?? "" },
+                                                                  set: { session.setPiModel(model: $0) })) {
+                                    ForEach(pi.models, id: \.id) { Text($0.label).tag($0.id) }
+                                }
+                                if !pi.efforts.isEmpty {
+                                    Picker("Thinking", selection: Binding(get: { s.effort ?? PI_DEFAULT_EFFORT }, set: { session.setEffort(effort: $0) })) {
+                                        ForEach(pi.efforts, id: \.self) { Text($0).tag($0) }
+                                    }
+                                }
+                            }
+                        }
+                        if !isPi {
+                            Picker("Permission mode", selection: Binding(get: { s.mode }, set: { session.setMode(mode: $0) })) {
+                                ForEach(SessionChoices.shared.modes, id: \.id) { Text($0.label).tag($0.id) }
+                            }
                         }
                         TextField("First prompt (optional)", text: Binding(get: { s.prompt }, set: { session.setPrompt(prompt: $0) }), axis: .vertical)
                             .lineLimit(2...6)
+                    } header: {
+                        Text("Seat")
+                    } footer: {
+                        if isPi { Text(NewSeatView.piHint) }
                     }
                 }
             }

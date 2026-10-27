@@ -345,8 +345,11 @@ struct OutboxPanel: View {
                 HStack(alignment: .firstTextBaseline) {
                     Image(systemName: "clock").foregroundStyle(Theme.busy)
                     Text(row.text).lineLimit(2).font(.callout)
+                        // A pi seat's queue says where each one stands; only as a hint, the list looks as it always did.
+                        .help(row.queueItemId != nil ? row.label : "")
                     Spacer()
                     Button("Send now") { sendNow(row) }.help(Self.sendNowHelp(row))
+                        .disabled(row.queueItemId != nil && !row.canSteer)
                     Button { cancel(row) } label: { Image(systemName: "trash") }
                         .buttonStyle(.borderless)
                         .disabled(!cancellable)
@@ -359,7 +362,10 @@ struct OutboxPanel: View {
     }
 
     private func sendNow(_ row: OutboxRow) {
-        if row.kind == .serverHeld, let id = row.messageId {
+        if let item = row.queueItemId {
+            // A pi seat: a follow-up steers the running run at its next step, rather than an interrupt.
+            if row.canSteer { session.steerQueued(itemId: item) }
+        } else if row.kind == .serverHeld, let id = row.messageId {
             session.sendHeldNow(messageId: id)
         } else if let id = row.heldId?.int64Value {
             session.forceSend(id: id, interrupt: true)
@@ -369,20 +375,25 @@ struct OutboxPanel: View {
     }
 
     private func cancel(_ row: OutboxRow) {
-        if row.kind == .serverHeld, let id = row.messageId {
+        if let item = row.queueItemId {
+            session.deleteQueued(itemId: item)
+        } else if row.kind == .serverHeld, let id = row.messageId {
             session.cancelHeld(messageId: id)
         } else if let id = row.heldId?.int64Value {
             session.unqueue(id: id)
         }
     }
 
-    static let notCancellable = "Claude Code cannot take back a message in its queue"
+    static let notCancellable = "Already with the seat: it can no longer be taken back"
 
     /// Core's rule: one held here always; one the server holds until its 15 s are up; never one in Claude's queue.
     static func canCancel(_ row: OutboxRow, nowMs: Int64) -> Bool { cancellableNow(row: row, nowMs: nowMs) }
 
     static func sendNowHelp(_ row: OutboxRow) -> String {
-        row.kind == .held || row.kind == .serverHeld ? "Deliver it now, interrupting the running turn"
+        if row.queueItemId != nil {
+            return row.canSteer ? "Steer: hand it to the running run at its next step" : "It already steers the running run"
+        }
+        return row.kind == .held || row.kind == .serverHeld ? "Deliver it now, interrupting the running turn"
                                                      : "Interrupt the running turn: Claude then runs its queue, this one in turn"
     }
 }
