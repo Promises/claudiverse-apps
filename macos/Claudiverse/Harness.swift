@@ -25,7 +25,8 @@ import UserNotifications
  * Markdown as Claude's and the operator's bubbles; image: a server file path,
  * drawn in the operator's bubble as a stored image), notify {title, body}, log (core's last
  * 200 log lines), probe (the socket's heartbeat check), restarts (Settings → Restarts
- * in a window), acceptall {title, on?} (a seat's accept-all switch in a window; set first when on is given), tabcolor {fleet, tab, color} (a tab's colour, saved; replies with the old one), foldedrow {fleet} (a folded fleet's row, in a window), held {seat, id, action: cancel|now} (a held row's trash or Send now), autorestart {minutes} (the global idle minutes; never the switch), snapshot {path, window?} (a window drawn into a PNG by the app), quit.
+ * in a window), newseat (the New seat sheet in a window), newseatdo {host?, path?, title?, runtime?, piModel?,
+ * effort?, spawn?} (steps on it, as its controls take them), acceptall {title, on?} (a seat's accept-all switch in a window; set first when on is given), tabcolor {fleet, tab, color} (a tab's colour, saved; replies with the old one), foldedrow {fleet} (a folded fleet's row, in a window), held {seat, id, action: cancel|now} (a held row's trash or Send now), autorestart {minutes} (the global idle minutes; never the switch), snapshot {path, window?} (a window drawn into a PNG by the app), quit.
  * Window ids from "windows" work with `screencapture -l <id>`, and with snapshot.
  */
 @MainActor
@@ -37,6 +38,8 @@ enum Harness {
     private static var previewWindow: NSWindow?
     /// Seat sessions opened by "send", kept until their send has gone (closing at once would cancel it).
     private static var sending: [SeatSession] = []
+    /// The New seat sheet "newseat" opened, driven by "newseatdo".
+    private static var newSeat: NewSeatSession?
     /// Seats joined in the background by "seatagents", to report what their replay holds.
     private static var inspecting: [Int64: SeatSession] = [:]
     /// Core's latest log lines, newest last: the socket's own account of why it dropped, say.
@@ -349,6 +352,37 @@ enum Harness {
                 }
             }
             return reply(["ok": true, "note": "sent; the server's answer is in log"])
+        case "newseat":
+            // The New seat sheet in a window, its session kept for "newseatdo"; it starts nothing until told to spawn.
+            let window = previewWindow ?? NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 640),
+                                                   styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.title = "New seat preview"
+            window.contentView = NSHostingView(rootView: NewSeatView(onSession: { newSeat = $0 }).environment(model).themed())
+            window.orderFront(nil)
+            previewWindow = window
+            return reply(["ok": true, "window": window.windowNumber])
+        case "newseatdo":
+            // Steps on that sheet, as its controls take them: host, path (browse to it), title, runtime ("pi" or ""),
+            // piModel, effort, and spawn: true to start the seat. Replies with the sheet's state.
+            guard let s = newSeat else { return reply(["error": "open it with newseat first"]) }
+            if let h = json["host"] as? String { s.pickHost(name: h) }
+            if let p = json["path"] as? String { s.setTab(tab: .browse); s.browse(path: p) }
+            if let t = json["title"] as? String { s.setTitle(title: t) }
+            if let r = json["runtime"] as? String { s.setRuntime(runtime: r.isEmpty ? nil : r) }
+            if let m = json["piModel"] as? String { s.setPiModel(model: m) }
+            if let e = json["effort"] as? String { s.setEffort(effort: e) }
+            if json["spawn"] as? Bool == true {
+                Task {
+                    do { note("newseat: spawn \(try await s.spawn().boolValue ? "accepted" : "refused: \(s.ui.value.spawnError ?? "?")")") }
+                    catch { note("newseat: spawn failed: \(error.message)") }
+                }
+            }
+            let st = s.ui.value
+            let pi = piChoices(host: st.hosts.first { $0.name == st.host })
+            return reply(["host": st.host ?? "", "path": st.path ?? "", "title": st.title, "runtime": st.runtime ?? "",
+                          "piModel": st.piModel ?? "", "effort": st.effort ?? "", "offersPi": pi != nil,
+                          "canSpawn": st.canSpawn, "error": st.spawnError ?? st.listingError ?? ""])
         case "acceptall":
             // A seat's accept-all switch in a window, for title (with on: true or false, set first through the app's
             // own call). Use a title no seat has: on, the server says yes to that seat's every permission prompt.
