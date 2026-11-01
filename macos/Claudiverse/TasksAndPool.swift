@@ -108,7 +108,7 @@ struct TasksView: View {
 
 // MARK: pool
 
-/// Server health, the Anthropic account pool and the incident log, read every 30 s while shown.
+/// Server health, the Anthropic account pool, Z.ai keys and the incident log, read every 30 s while shown.
 @MainActor
 @Observable
 final class PoolModel {
@@ -118,6 +118,9 @@ final class PoolModel {
     private(set) var error: String?
     /// The newest "pool" event since the app started: what changed, and who changed it.
     var lastChange: PoolChange?
+    /// Z.ai Coding Plan keys; nil before the first read or from a server without them.
+    private(set) var zai: [ZaiKey]?
+    private(set) var zaiError: String?
 
     func load(_ api: Api) async {
         health = try? await Int(api.health())
@@ -129,6 +132,17 @@ final class PoolModel {
             self.error = "Pool not read: \(error.message)"
         }
         incidents = try? await api.incidents()
+        await loadZai(api)
+    }
+
+    func loadZai(_ api: Api) async {
+        do {
+            zai = try await api.zaiKeys()
+            zaiError = nil
+        } catch {
+            if Task.isCancelled || error is CancellationError { return }
+            zaiError = "Z.ai keys not read: \(error.message)"
+        }
     }
 
     /** Make [account] the pool's first choice; the answer's order shows at once. */
@@ -195,6 +209,7 @@ struct PoolView: View {
                         AccountCard(account: a, pool: pool) { Task { await p.makePreferred(model.client.api, a) } }
                     }
                 }
+                ZaiSection()
                 if let pool = p.pool { AssignmentSummary(pool: pool) }
                 UsageCharts()
                 if let inc = p.incidents, !inc.latest.isEmpty {
