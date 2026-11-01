@@ -10,6 +10,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import dev.claudiverse.core.ZaiKey
 import dev.claudiverse.core.AccountSignIn
 import dev.claudiverse.core.ApiException
 import dev.claudiverse.core.Reauthorization
@@ -45,7 +46,13 @@ import dev.claudiverse.core.relativeTime
 import dev.claudiverse.core.parseServerTime
 
 /** Server health, the Anthropic account pool, and the 5xx incident log. */
-data class PoolView(val health: Int?, val pool: Pool, val incidents: Incidents?)
+data class PoolView(
+    val health: Int?,
+    val pool: Pool,
+    val incidents: Incidents?,
+    /** Z.ai Coding Plan keys with their quota; null from a server without Z.ai, or when they could not be read. */
+    val zai: List<ZaiKey>? = null,
+)
 
 /** Signing an account in again: begin a sign-in, and complete it for one account (force replaces a different one). */
 class AccountSignIns(
@@ -65,6 +72,7 @@ fun PoolScreen(
     /** An account to re-authorize at once (from a "needs re-auth" notification); cleared once opened. */
     reauthRequest: Long?,
     onReauthOpened: () -> Unit,
+    zaiActions: ZaiActions,
 ) {
     val remote by vm.remote.collectAsStateWithLifecycle()
     // The server announces every change to the order or the account in use: read the pool again then.
@@ -78,6 +86,10 @@ fun PoolScreen(
     var problem by remember { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     var reauthId by remember { mutableStateOf<Long?>(null) }
+    var addingZai by remember { mutableStateOf(false) }
+    zaiActions.add?.let { add ->
+        if (addingZai) AddZaiKeyDialog(add, onDone = { done -> addingZai = false; notice = done; vm.refresh() }, onDismiss = { addingZai = false })
+    }
     LaunchedEffect(reauthRequest) {
         if (reauthRequest != null) {
             reauthId = reauthRequest
@@ -132,6 +144,18 @@ fun PoolScreen(
                     }
                 }
                 item { AssignmentSummary(view.pool) }
+                // Z.ai (GLM) Coding Plan: pi seats' quota, beside the Anthropic accounts.
+                if (view.zai != null && (view.zai.isNotEmpty() || zaiActions.add != null)) {
+                    item {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Z.ai Coding Plan", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                            if (zaiActions.add != null) TextButton(onClick = { notice = null; addingZai = true }) { Text("Add key…") }
+                        }
+                    }
+                    items(view.zai, key = { "zai:${it.id}" }) { k ->
+                        ZaiCard(k, zaiActions) { p -> problem = p; vm.refresh() }
+                    }
+                }
                 view.incidents?.takeIf { it.latest.isNotEmpty() }?.let { inc ->
                     item { Text("Latest incidents since ${localTime(inc.since)}", style = MaterialTheme.typography.titleSmall) }
                     items(inc.latest.reversed()) {

@@ -25,6 +25,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import dev.claudiverse.app.spawn.NewSeatViewModel
 import dev.claudiverse.app.spawn.AutoRestartViewModel
@@ -263,6 +264,13 @@ fun AppRoot(app: AppContainer, openSeat: MutableStateFlow<SeatLink?>, openReauth
             }
             composable("tasks") { TasksScreen { state -> app.api.tasks(state, fleet = null, limit = 200) } }
             composable("pool") {
+                // Adding, checking and removing Z.ai keys is app-only: offered only to an app sign-in.
+                val canChange by produceState(false) { value = runCatching { app.api.me().canChangeSettings }.getOrDefault(false) }
+                val zaiActions = if (canChange) ZaiActions(
+                    add = { label, key -> app.api.addZaiKey(label, key) },
+                    check = { id -> app.api.checkZaiKey(id) },
+                    remove = { id -> app.api.deleteZaiKey(id) },
+                ) else ZaiActions(null, null, null)
                 PoolScreen(
                     viewModel {
                         RemoteViewModel(pollMs = 30_000) {
@@ -270,6 +278,7 @@ fun AppRoot(app: AppContainer, openSeat: MutableStateFlow<SeatLink?>, openReauth
                                 health = runCatching { app.api.health() }.getOrNull(),
                                 pool = app.api.pool(),
                                 incidents = runCatching { app.api.incidents() }.getOrNull(),
+                                zai = runCatching { app.api.zaiKeys() }.getOrNull(),
                             )
                         }
                     },
@@ -282,6 +291,7 @@ fun AppRoot(app: AppContainer, openSeat: MutableStateFlow<SeatLink?>, openReauth
                         complete = { account, signIn, code, force -> app.api.reauthorize(account, signIn, code, force) },
                     ),
                     reauthRequest = reauth,
+                    zaiActions = zaiActions,
                     onReauthOpened = { openReauth.value = null },
                 )
             }
