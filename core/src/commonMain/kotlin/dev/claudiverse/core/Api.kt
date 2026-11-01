@@ -677,6 +677,44 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
         get("tasks", query = listOf("state" to state, "fleet" to fleet, "limit" to "$limit"))
             .array("tasks").objects().map(FleetTask::from)
 
+
+    // --- Z.ai Coding Plan keys ---
+
+    /** The Z.ai keys with their quota, as the server last read them; null from a server without Z.ai (404). Any token. */
+    @Throws(Exception::class)
+    suspend fun zaiKeys(): List<ZaiKey>? = try {
+        getList(listOf("zai", "keys"), "keys").map(ZaiKey::from)
+    } catch (e: ApiException) {
+        if (e.httpStatus == 404) null else throw e
+    }
+
+    /**
+     * Add a Z.ai key (app token). The server checks it with Z.ai first, then
+     * stores it encrypted and never returns it; a refused key is a 422 with
+     * the server's sentence ("Z.ai refused the key (401)").
+     */
+    @Throws(Exception::class)
+    suspend fun addZaiKey(label: String, key: String): ZaiKey {
+        val o = post(listOf("zai", "keys"), buildJsonObject { put("label", label); put("key", key) })
+        return ZaiKey.from(o.obj("key") ?: o)
+    }
+
+    /** Read a key's quota from Z.ai now (app token). */
+    @Throws(Exception::class)
+    suspend fun checkZaiKey(id: Long): ZaiKey? {
+        val o = post(listOf("zai", "keys", "$id", "check"))
+        return (o.obj("key") ?: o.takeIf { it.containsKey("id") })?.let(ZaiKey::from)
+    }
+
+    /** Remove a key (app token); its seats keep running, only the quota display goes. */
+    @Throws(Exception::class)
+    suspend fun deleteZaiKey(id: Long) {
+        // The reply may have no body (204): only the status matters.
+        request(HttpMethod.Delete, url(listOf("zai", "keys", "$id")), token = access().token).let { reply ->
+            if (reply.code !in 200..299) throw failure(reply, parse(reply.body) as? JsonObject)
+        }
+    }
+
     /**
      * Each account's daily use of its weekly limit for the last [days] days,
      * local to [tz] (the server's default zone when null), with the raw
