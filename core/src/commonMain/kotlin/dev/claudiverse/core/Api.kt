@@ -2,6 +2,7 @@ package dev.claudiverse.core
 
 import io.ktor.client.HttpClient
 import io.ktor.client.request.forms.InputProvider
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.header
@@ -623,7 +624,10 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
     suspend fun download(path: String, sink: Sink, progress: (Long) -> Unit) {
         val a = access()
         val url = parseBase(a.baseUrl.trimEnd('/') + path).build()
-        http.prepareGet(url) { header(HttpHeaders.Authorization, "Bearer ${a.token}") }.execute { response ->
+        http.prepareGet(url) {
+            header(HttpHeaders.Authorization, "Bearer ${a.token}")
+            timeout { requestTimeoutMillis = TRANSFER_TIMEOUT_MS }
+        }.execute { response ->
             if (!response.status.isSuccess()) throw ApiException("HTTP ${response.status.value}: download failed", response.status.value)
             val channel = response.bodyAsChannel()
             val buf = ByteArray(64 * 1024)
@@ -864,7 +868,10 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
     ): JsonObject {
         val reply = request(method, url(segments, query, signedIn), token = if (signedIn) access().token else null) {
             json?.let { setBody(TextContent(it.toString(), ContentType.Application.Json)) }
-            content?.let { setBody(it) }
+            content?.let {
+                setBody(it)
+                timeout { requestTimeoutMillis = TRANSFER_TIMEOUT_MS }
+            }
         }
         val parsed = parse(reply.body) as? JsonObject
         if (reply.code !in 200..299) throw failure(reply, parsed)
