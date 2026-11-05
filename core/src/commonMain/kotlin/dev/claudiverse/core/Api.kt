@@ -354,7 +354,7 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
     /** What restarting [seatId] would do, without doing it. App or super token. */
     @Throws(Exception::class)
     suspend fun planSeatRestart(seatId: Long, includeSelf: Boolean = false, caller: Long? = null, confirmProtected: Boolean = false): RestartPlan {
-        val o = post(listOf("sessions", "$seatId", "restart"), seatRestartBody(dryRun = true, includeSelf, caller, confirmProtected))
+        val o = refusedAs409 { post(listOf("sessions", "$seatId", "restart"), seatRestartBody(dryRun = true, includeSelf, caller, confirmProtected)) }
         return RestartPlan.from(o.obj("seat") ?: throw ApiException("Server sent no plan"))
     }
 
@@ -364,15 +364,22 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
      * its "seat_restart" events carry. A seat that is not idle enough is
      * refused, never queued: [RestartRefused] with the server's sentence.
      * A protected seat ([RestartPlan.isProtected]) needs [confirmProtected].
+     * [force] restarts a seat that is only not idle ([RestartRefused.canForce]):
+     * its running turn, background work and open dialog are stopped, the
+     * conversation is resumed. One seat only; app token.
      */
     @Throws(Exception::class)
-    suspend fun restartSeat(seatId: Long, includeSelf: Boolean = false, caller: Long? = null, confirmProtected: Boolean = false): String =
-        try {
-            post(listOf("sessions", "$seatId", "restart"), seatRestartBody(dryRun = false, includeSelf, caller, confirmProtected)).requireStr("restart_id")
-        } catch (e: ApiException) {
-            if (e.httpStatus == 409) throw RestartRefused(e.body?.str("error") ?: e.message.orEmpty(), e.body?.str("reason_code"))
-            throw e
-        }
+    suspend fun restartSeat(seatId: Long, includeSelf: Boolean = false, caller: Long? = null, confirmProtected: Boolean = false, force: Boolean = false): String =
+        refusedAs409 { post(listOf("sessions", "$seatId", "restart"), seatRestartBody(dryRun = false, includeSelf, caller, confirmProtected, force)) }
+            .requireStr("restart_id")
+
+    /** A 409 from a seat restart (planned or done) as [RestartRefused]: the server's sentence ("error") and its reason_code. */
+    private suspend fun <T> refusedAs409(run: suspend () -> T): T = try {
+        run()
+    } catch (e: ApiException) {
+        if (e.httpStatus == 409) throw RestartRefused(e.body?.str("error") ?: e.message.orEmpty(), e.body?.str("reason_code"))
+        throw e
+    }
 
     /** What restarting the idle seats on [host] (null: every machine) would do: each seat's plan, skips included. */
     @Throws(Exception::class)
@@ -389,8 +396,9 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
     private fun idleRestartPath(host: String?) =
         if (host == null) listOf("hosts", "restart_idle") else listOf("hosts", host, "restart_idle")
 
-    private fun seatRestartBody(dryRun: Boolean, includeSelf: Boolean, caller: Long?, confirmProtected: Boolean) = buildJsonObject {
+    private fun seatRestartBody(dryRun: Boolean, includeSelf: Boolean, caller: Long?, confirmProtected: Boolean, force: Boolean = false) = buildJsonObject {
         if (dryRun) put("dry_run", true)
+        if (force) put("force", true)
         if (includeSelf) put("include_self", true)
         if (confirmProtected) put("confirm_protected", true)
         caller?.let { put("caller", it) }

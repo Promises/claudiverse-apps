@@ -100,7 +100,24 @@ data class RestartOptions(
 )
 
 /** A single seat's restart the server refused (409): [message] is its sentence, for people; [reasonCode] as in [RestartPlan]. */
-class RestartRefused(message: String, val reasonCode: String?) : Exception(message)
+class RestartRefused(message: String, val reasonCode: String?) : Exception(message) {
+    /**
+     * The seat is only not idle (mid-turn, background work, an open dialog,
+     * recent activity): "Restart anyway" ([Api.restartSeat] with force) is
+     * offered. Never for any other refusal, nor an unknown or missing code.
+     */
+    val canForce: Boolean get() = reasonCode in FORCEABLE
+
+    /** The confirm for a forced restart, in the server's words for what is running ("… has 1 background task(s) running"). */
+    val forcePrompt: String
+        get() = (message.orEmpty().trim().trimEnd('.').ifEmpty { "The seat is busy" }) +
+            ". Restart anyway? Its running work is stopped; the conversation is kept."
+
+    companion object {
+        /** The idle checks a forced restart skips; the server overrides nothing else. */
+        val FORCEABLE = setOf("busy", "background", "permission", "question", "recent_activity")
+    }
+}
 
 /** A batch restart the server accepted: it restarts [seats] one at a time. */
 data class RestartBatchStarted(val batchId: String, val seats: List<RestartPlan>)
