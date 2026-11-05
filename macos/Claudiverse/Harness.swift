@@ -135,6 +135,7 @@ enum Harness {
                 "boardFleet": model.boardFleet as Any,
                 "boardTab": model.boardFleet.flatMap { f in model.shownBoardTab[f].flatMap { id in BoardTabs.peek(f).tabs.first { $0.id == id }?.name } } as Any,
                 "socketConnected": model.socketConnected,
+                "serverNode": model.client.socket.node.value.map { "\($0.node ?? "alone") \($0.active ? "active" : "standby")" } ?? "",
                 "seats": model.seats.count,
                 "needsYou": model.needsYou.values.map { ["seat": $0.sessionId, "title": $0.seatTitle, "summary": $0.summary] },
                 "fleets": model.fleets.map { f in ["fleet": f.fleet, "runners": f.runners.map { ["slot": $0.slot, "status": $0.status, "seat": $0.seat as Any] }, "seats": f.seats.map(\.title)] },
