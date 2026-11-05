@@ -51,8 +51,14 @@ class PhoenixSocket internal constructor(
     private val access: () -> ServerAccess,
     private val scope: CoroutineScope,
     private val http: HttpClient,
+    /** The live copy, read on a fresh connection ([readLiveNode]); a test passes its own. */
+    private val liveNode: suspend () -> ServerNode? = { readLiveNode(access().baseUrl) },
 ) {
     constructor(access: () -> ServerAccess, scope: CoroutineScope) : this(access, scope, socketClient())
+
+    /** The copy this socket is joined on, as its last join reply or whoami said; null before one says. */
+    private val nodeState = MutableStateFlow<ServerNode?>(null)
+    val node: StateFlow<ServerNode?> = nodeState.asStateFlow()
 
     private val connectedState = MutableStateFlow(false)
     val connected: StateFlow<Boolean> = connectedState.asStateFlow()
@@ -72,6 +78,7 @@ class PhoenixSocket internal constructor(
      */
     private var queue: SendChannel<String>? = null
     private var heartbeat: Job? = null
+    private var nodeWatch: Job? = null
     private var reconnect: Job? = null
     private var attempt = 0
 
@@ -171,6 +178,8 @@ class PhoenixSocket internal constructor(
                     "ok" -> {
                         joinedState.value = true
                         errorState.value = null
+                        // The server says which copy answered; a join on the standby is no join at all.
+                        ServerNode.from(r.obj("response"))?.let { onNode(it, live = null) }
                     }
                     null -> errorState.value = "join timed out"
                     else -> errorState.value = r.obj("response")?.str("reason") ?: "join refused"
@@ -270,6 +279,13 @@ class PhoenixSocket internal constructor(
                     probe(job, HEARTBEAT_TIMEOUT_MS)
                 }
             }
+            nodeWatch?.cancel()
+            nodeWatch = scope.launch {
+                while (isActive) {
+                    delay(NODE_CHECK_MS)
+                    checkNode()
+                }
+            }
             channels.values.filter { it.wanted }
         }
         connectedState.value = true
@@ -296,6 +312,7 @@ class PhoenixSocket internal constructor(
             if (channels.values.any { it.wanted }) return
             reconnect?.cancel()
             heartbeat?.cancel()
+            nodeWatch?.cancel()
             val s = session
             val c = connection
             session = null
@@ -319,6 +336,8 @@ class PhoenixSocket internal constructor(
             session = null
             queue = null
             heartbeat?.cancel()
+            nodeWatch?.cancel()
+            nodeState.value = null
             channels.values.forEach { it.socketLost() }
             channels.values.any { it.wanted }
         }
@@ -377,6 +396,26 @@ class PhoenixSocket internal constructor(
         return alive
     }
 
+    /**
+     * Compare the copy this socket is on with the live one: whoami on a
+     * joined channel, /api/health on a fresh connection. Reopens the socket
+     * when they differ (see [mustReconnect]).
+     */
+    internal suspend fun checkNode() {
+        val channel = synchronized(lock) { channels.values.firstOrNull { it.wanted && it.joined.value } } ?: return
+        val mine = channel.push("whoami", JsonObject(emptyMap()))?.takeIf { it.str("status") == "ok" }?.obj("response")
+        val socket = ServerNode.from(mine) ?: return
+        onNode(socket, liveNode())
+    }
+
+    private fun onNode(socket: ServerNode, live: ServerNode?) {
+        nodeState.value = socket
+        if (!mustReconnect(socket, live)) return
+        val job = synchronized(lock) { connection } ?: return
+        lost(job, "joined on ${socket.node ?: "?"}${if (socket.active) "" else " (not active)"}, live is ${live?.node ?: "unknown"}")
+        job.cancel()
+    }
+
     private fun nextRef(): String = synchronized(lock) { (++refs).toString() }
 
     private fun send(joinRef: String?, ref: String, topic: String, event: String, payload: JsonObject): Boolean {
@@ -390,6 +429,8 @@ class PhoenixSocket internal constructor(
         const val HEARTBEAT_MS = 20_000L
         const val HEARTBEAT_TIMEOUT_MS = 10_000L
         const val PROBE_TIMEOUT_MS = 5_000L
+        /** How often the socket's copy is compared with the live one. */
+        const val NODE_CHECK_MS = 60_000L
 
         /** No read timeout: a quiet channel is normal, and the heartbeat is what detects a dead link. */
         fun socketClient(): HttpClient = platformHttpClient {
