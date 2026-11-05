@@ -123,4 +123,13 @@ final class RestartViewsTests: XCTestCase {
         XCTAssertNil(RestartSeatSheet.forceable(refusal: nil, plan: plan(5, "skip", protected: true, reason: "protected")),
                      "protected is its own confirm, never a force")
     }
+
+    /// A seat that is protected AND only busy: forceable, but forcing it still asks the protected confirm.
+    func testForcingAProtectedSeatStillAsksItsOwnConfirm() {
+        let protectedBusy = plan(8, "skip", protected: true, reason: "busy")
+        XCTAssertNotNil(RestartSeatSheet.forceable(refusal: nil, plan: protectedBusy), "busy is forceable")
+        XCTAssertTrue(RestartSeatSheet.forceNeedsProtectedConfirm(protectedBusy), "but protection is its own confirm")
+        XCTAssertFalse(RestartSeatSheet.forceNeedsProtectedConfirm(plan(4, "skip", reason: "busy")))
+        XCTAssertFalse(RestartSeatSheet.forceNeedsProtectedConfirm(nil), "a refusal with no plan: the server asks for confirm_protected itself")
+    }
 }

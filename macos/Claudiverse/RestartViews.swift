@@ -407,6 +407,8 @@ struct RestartSeatSheet: View {
     /// The server's refusal, plan or restart, when the seat is only not idle: "Restart Anyway…" then forces it.
     @State private var refusal: RestartRefused?
     @State private var confirmingForce = false
+    /// A protected seat being forced: its own confirm, after the force one.
+    @State private var confirmingProtectedForce = false
 
     private var api: Api { model.client.api }
 
@@ -452,9 +454,17 @@ struct RestartSeatSheet: View {
             Button("Restart", role: .destructive) { Task { await restart(confirmProtected: true) } }
         }
         .confirmationDialog("Restart \(seat.label) anyway?", isPresented: $confirmingForce) {
-            Button("Restart Anyway", role: .destructive) { Task { await restart(confirmProtected: plan?.needsProtectedConfirm == true, force: true) } }
+            Button("Restart Anyway", role: .destructive) {
+                // Forcing never stands in for the protected confirm: a protected seat asks again, in its own words.
+                if Self.forceNeedsProtectedConfirm(plan) { confirmingProtectedForce = true } else { Task { await restart(confirmProtected: false, force: true) } }
+            }
         } message: {
             Text(refusal?.forcePrompt ?? "")
+        }
+        .confirmationDialog("\(seat.label) is protected. Restart it anyway?", isPresented: $confirmingProtectedForce) {
+            Button("Restart Protected Seat", role: .destructive) { Task { await restart(confirmProtected: true, force: true) } }
+        } message: {
+            Text("Protected seats are left alone unless you mean it. Its running work is stopped; the conversation is kept.")
         }
     }
 
@@ -465,6 +475,9 @@ struct RestartSeatSheet: View {
         let skip = RestartRefused(message: plan.reason ?? "", reasonCode: plan.reasonCode)
         return skip.canForce ? skip : nil
     }
+
+    /// Forcing a seat that is also protected takes the protected confirm as well; confirm_protected is sent only after it.
+    static func forceNeedsProtectedConfirm(_ plan: RestartPlan?) -> Bool { plan?.needsProtectedConfirm == true }
 
     /// The button: "Restart (resume on 2.1.296)", or "Adopt into a managed seat".
     static func button(_ p: RestartPlan) -> String {
