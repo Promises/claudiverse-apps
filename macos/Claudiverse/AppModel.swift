@@ -33,6 +33,9 @@ extension Error {
 
     var httpStatus: Int? { apiException?.httpStatus.map { Int(truncating: $0) } }
 
+    /// A seat restart the server refused (a 409), with its reason code.
+    var restartRefused: RestartRefused? { (self as NSError).userInfo["KotlinException"] as? RestartRefused }
+
     /// The server's own words when it sent some, else the error's.
     var message: String { apiException?.message ?? localizedDescription }
 }

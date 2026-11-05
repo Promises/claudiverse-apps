@@ -112,4 +112,15 @@ final class RestartViewsTests: XCTestCase {
         XCTAssertEqual(RestartWording.claudeCode("2.1.292"), "2.1.292")
         XCTAssertNil(RestartWording.claudeCode(nil))
     }
+
+    /// "Restart Anyway" only for a seat that is merely not idle: from the server's refusal, or the plan's own skip.
+    func testRestartAnywayOnlyForAnIdleCheck() {
+        XCTAssertNotNil(RestartSeatSheet.forceable(refusal: RestartRefused(message: "1 background task(s) running", reasonCode: "background"), plan: nil))
+        XCTAssertNil(RestartSeatSheet.forceable(refusal: RestartRefused(message: "not running", reasonCode: "not_running"), plan: nil))
+        XCTAssertNil(RestartSeatSheet.forceable(refusal: RestartRefused(message: "?", reasonCode: nil), plan: nil))
+        XCTAssertNotNil(RestartSeatSheet.forceable(refusal: nil, plan: plan(1, "skip", reason: "busy")), "a plan skipped as busy")
+        XCTAssertNil(RestartSeatSheet.forceable(refusal: nil, plan: plan(1, "restart")), "nothing to force")
+        XCTAssertNil(RestartSeatSheet.forceable(refusal: nil, plan: plan(5, "skip", protected: true, reason: "protected")),
+                     "protected is its own confirm, never a force")
+    }
 }

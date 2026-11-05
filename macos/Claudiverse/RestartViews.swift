@@ -404,6 +404,9 @@ struct RestartSeatSheet: View {
     @State private var error: String?
     @State private var restartId: String?
     @State private var confirmingProtected = false
+    /// The server's refusal, plan or restart, when the seat is only not idle: "Restart Anyway…" then forces it.
+    @State private var refusal: RestartRefused?
+    @State private var confirmingForce = false
 
     private var api: Api { model.client.api }
 
@@ -433,6 +436,10 @@ struct RestartSeatSheet: View {
                     .keyboardShortcut(.defaultAction)
                     // A protected seat the server skips only for being protected is restarted on a second confirmation.
                     .disabled(!(plan?.choosable ?? false))
+                    if let forceable = Self.forceable(refusal: refusal, plan: plan) {
+                        Button("Restart Anyway…", role: .destructive) { refusal = forceable; confirmingForce = true }
+                            .help("Stop what it is doing and restart it; the conversation is kept")
+                    }
                 } else {
                     Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
                 }
@@ -444,6 +451,19 @@ struct RestartSeatSheet: View {
         .confirmationDialog("\(seat.label) is protected. Restart it anyway?", isPresented: $confirmingProtected) {
             Button("Restart", role: .destructive) { Task { await restart(confirmProtected: true) } }
         }
+        .confirmationDialog("Restart \(seat.label) anyway?", isPresented: $confirmingForce) {
+            Button("Restart Anyway", role: .destructive) { Task { await restart(confirmProtected: plan?.needsProtectedConfirm == true, force: true) } }
+        } message: {
+            Text(refusal?.forcePrompt ?? "")
+        }
+    }
+
+    /// A refusal "Restart Anyway" may override: one the server sent, or the plan's own skip; only the idle checks (core's rule).
+    static func forceable(refusal: RestartRefused?, plan: RestartPlan?) -> RestartRefused? {
+        if let refusal { return refusal.canForce ? refusal : nil }
+        guard let plan, plan.skipped, !plan.choosable else { return nil }
+        let skip = RestartRefused(message: plan.reason ?? "", reasonCode: plan.reasonCode)
+        return skip.canForce ? skip : nil
     }
 
     /// The button: "Restart (resume on 2.1.296)", or "Adopt into a managed seat".
@@ -476,17 +496,24 @@ struct RestartSeatSheet: View {
             error = nil
         } catch {
             if Task.isCancelled || error is CancellationError { return }
-            self.error = error.httpStatus == 404 ? "This server cannot restart seats yet." : "Not planned: \(error.message)"
+            if let refused = error.restartRefused {
+                refusal = refused
+                self.error = "Not now: \(refused.message ?? "the seat is busy")"
+            } else {
+                self.error = error.httpStatus == 404 ? "This server cannot restart seats yet." : "Not planned: \(error.message)"
+            }
         }
     }
 
-    private func restart(confirmProtected: Bool) async {
+    private func restart(confirmProtected: Bool, force: Bool = false) async {
         do {
-            restartId = try await api.restartSeat(seatId: seat.id, includeSelf: false, caller: nil, confirmProtected: confirmProtected)
+            restartId = try await api.restartSeat(seatId: seat.id, includeSelf: false, caller: nil, confirmProtected: confirmProtected, force: force)
             error = nil
         } catch {
-            // A refusal carries the server's sentence (busy, asking a question…): said as it is.
-            self.error = "Not restarted: \(error.message)"
+            // A refusal carries the server's sentence (busy, asking a question…): said as it is; an older machine
+            // that refuses a busy seat itself even when forced says so in its own words.
+            refusal = error.restartRefused
+            self.error = "Not restarted: \(error.restartRefused?.message ?? error.message)"
         }
     }
 }
