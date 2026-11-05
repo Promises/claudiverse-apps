@@ -354,9 +354,18 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
         if (state.value.restartPlanning) return
         state.update { it.copy(restartPlanning = true) }
         viewModelScope.launch {
-            val plan = runCatching { app.api.planSeatRestart(seatId) }.getOrElse { e ->
-                RestartPlan(seatId, state.value.seat?.label.orEmpty(), state.value.seat?.host, null, RestartPlan.SKIP,
-                    "The server could not plan it: ${e.message}", null, null, null)
+            fun skip(reason: String, code: String?) = RestartPlan(sessionId = seatId, title = state.value.seat?.label.orEmpty(),
+                host = state.value.seat?.host, action = RestartPlan.SKIP, reason = reason, reasonCode = code,
+                clientVersion = null, targetVersion = null)
+            val plan = try {
+                app.api.planSeatRestart(seatId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: RestartRefused) {
+                // Refused as not idle enough: its code says whether "Restart anyway" may override it.
+                skip(e.message.orEmpty(), e.reasonCode)
+            } catch (e: Exception) {
+                skip("The server could not plan it: ${e.message}", null)
             }
             state.update { it.copy(restartPlan = plan, restartPlanning = false) }
         }
@@ -365,18 +374,24 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
     /**
      * Restart the seat on its machine's current Claude Code (or adopt it into
      * a tmux seat), following its events until it is done. A seat that is not
-     * idle enough is refused in the server's words.
+     * idle enough is refused in the server's words; [force] ("Restart
+     * anyway") restarts one the plan skipped only for an idle check
+     * ([forceableSkip]), stopping its running work.
      */
-    fun restart(confirmProtected: Boolean = false) {
-        val plan = state.value.restartPlan?.takeIf { it.choosable } ?: return
+    fun restart(confirmProtected: Boolean = false, force: Boolean = false) {
+        val plan = state.value.restartPlan?.takeIf { if (force) forceableSkip(it) != null else it.choosable } ?: return
         if (plan.needsProtectedConfirm && !confirmProtected) return
         val host = plan.host ?: state.value.seat?.host ?: "its machine"
-        val doing = if (plan.action == RestartPlan.ADOPT) "Adopting into a tmux seat" else "Restarting"
+        val doing = when {
+            plan.action == RestartPlan.ADOPT -> "Adopting into a tmux seat"
+            force -> "Stopping its work and restarting"
+            else -> "Restarting"
+        }
         state.update { it.copy(acting = true, notice = "$doing on $host…") }
         app.watchRestarts()
         viewModelScope.launch {
             try {
-                val id = app.api.restartSeat(seatId, confirmProtected = confirmProtected)
+                val id = app.api.restartSeat(seatId, confirmProtected = confirmProtected, force = force)
                 // One final event follows "started"; a machine that never sends it leaves a line saying so, not a stuck seat.
                 val done = withTimeoutOrNull(RESTART_WAIT_MS) {
                     app.restarts.events.mapNotNull { all -> all.lastOrNull { it.restartId == id && it.finished } }.first()
@@ -386,7 +401,9 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
             } catch (e: CancellationException) {
                 throw e
             } catch (e: RestartRefused) {
-                state.update { it.copy(notice = "Not restarted: ${e.message}", restartPlan = null) }
+                // Forced and still refused: an older machine that will not stop a busy seat, said in its words.
+                val anyway = if (e.canForce && !force) " (Restart anyway is in the ⋮ menu)" else ""
+                state.update { it.copy(notice = "Not restarted: ${e.message}$anyway", restartPlan = null) }
             } catch (e: Exception) {
                 val why = when ((e as? ApiException)?.httpStatus) {
                     403 -> "this app may not restart seats"

@@ -103,6 +103,8 @@ import dev.claudiverse.app.seat.SeatViewModel
 import dev.claudiverse.core.Timeline
 import dev.claudiverse.core.BackgroundTask
 import dev.claudiverse.core.RestartPlan
+import dev.claudiverse.core.RestartRefused
+import dev.claudiverse.app.seat.forceableSkip
 import dev.claudiverse.core.SeatAgent
 import dev.claudiverse.core.TimelineRow
 import dev.claudiverse.core.TranscriptImage
@@ -361,16 +363,24 @@ private fun SeatHeader(
     restartPlan: RestartPlan?,
     restartPlanning: Boolean,
     onPlanRestart: () -> Unit,
-    onRestart: (confirmProtected: Boolean) -> Unit,
+    onRestart: (confirmProtected: Boolean, force: Boolean) -> Unit,
 ) {
     var confirm by remember { mutableStateOf(false) }
     var confirmStop by remember { mutableStateOf(false) }
     var confirmRestart by remember { mutableStateOf(false) }
+    var confirmForce by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
+    // The plan's skip "Restart anyway" may override: only an idle check, never anything else.
+    val forceable = forceableSkip(restartPlan).takeIf { !restartPlanning }
     if (confirmRestart && restartPlan != null && restartPlan.choosable) RestartSeatDialog(
         restartPlan,
-        onConfirm = { protectedOk -> confirmRestart = false; onRestart(protectedOk) },
+        onConfirm = { protectedOk -> confirmRestart = false; onRestart(protectedOk, false) },
         onDismiss = { confirmRestart = false },
+    )
+    if (confirmForce && restartPlan != null && forceable != null) ForceRestartDialog(
+        restartPlan, forceable,
+        onConfirm = { protectedOk -> confirmForce = false; onRestart(protectedOk, true) },
+        onDismiss = { confirmForce = false },
     )
     if (confirmStop && lifecycle != null) AlertDialog(
         onDismissRequest = { confirmStop = false },
@@ -444,6 +454,12 @@ private fun SeatHeader(
                     enabled = !lifecycle.acting && plan != null && !restartPlanning && plan.choosable,
                     onClick = { menu = false; confirmRestart = true },
                 )
+                if (forceable != null) DropdownMenuItem(
+                    text = { Text("Restart anyway…", color = StatusColors.bad) },
+                    leadingIcon = { Icon(Icons.Filled.RestartAlt, contentDescription = null, tint = StatusColors.bad) },
+                    enabled = !lifecycle.acting,
+                    onClick = { menu = false; confirmForce = true },
+                )
                 DropdownMenuItem(
                     text = { Text("Stop seat…") },
                     leadingIcon = { Icon(Icons.Filled.StopCircle, contentDescription = null) },
@@ -487,6 +503,38 @@ private fun RestartSeatDialog(plan: RestartPlan, onConfirm: (confirmProtected: B
             TextButton(onClick = { onConfirm(protectedSeat && protectedOk) }, enabled = !protectedSeat || protectedOk) {
                 Text(if (adopt) "Adopt" else "Restart")
             }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+/**
+ * Restart a seat that is not idle? In the server's words for what is running,
+ * and what goes: its running work is stopped, the conversation is kept. A
+ * protected seat still takes its own deliberate yes on top.
+ */
+@Composable
+private fun ForceRestartDialog(plan: RestartPlan, refusal: RestartRefused, onConfirm: (confirmProtected: Boolean) -> Unit, onDismiss: () -> Unit) {
+    var protectedOk by remember(plan.sessionId) { mutableStateOf(false) }
+    val protectedSeat = plan.needsProtectedConfirm
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Restart ${plan.title} anyway?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(refusal.forcePrompt)
+                if (protectedSeat) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(protectedOk, { protectedOk = it })
+                    Text("${plan.title} is protected. Restart it anyway.", style = MaterialTheme.typography.bodyMedium, color = StatusColors.bad)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(protectedSeat && protectedOk) },
+                enabled = !protectedSeat || protectedOk,
+                colors = ButtonDefaults.textButtonColors(contentColor = StatusColors.bad),
+            ) { Text("Restart anyway") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
