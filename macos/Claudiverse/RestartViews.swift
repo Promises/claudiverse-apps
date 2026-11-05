@@ -523,9 +523,10 @@ struct RestartSeatSheet: View {
             restartId = try await api.restartSeat(seatId: seat.id, includeSelf: false, caller: nil, confirmProtected: confirmProtected, force: force)
             error = nil
         } catch {
-            // A refusal carries the server's sentence (busy, asking a question…): said as it is; an older machine
-            // that refuses a busy seat itself even when forced says so in its own words.
-            refusal = error.restartRefused
+            // A refusal carries the server's sentence (busy, asking a question…): said as it is. A forced restart
+            // still refused (an older machine refuses a busy seat itself) is said in its own words, and not offered
+            // again: forcing once more would be refused the same way.
+            refusal = force ? nil : error.restartRefused
             self.error = "Not restarted: \(error.restartRefused?.message ?? error.message)"
         }
     }
