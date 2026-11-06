@@ -26,6 +26,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineStart
+import dev.claudiverse.core.ReplayWatch
 import android.util.Log
 import dev.claudiverse.core.ApiException
 import dev.claudiverse.core.RestartPlan
@@ -150,14 +152,32 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
         }
     }
 
+    /**
+     * A join is answered by a replay; joined without one, the seat would show
+     * nothing until reopened. No replay within [REPLAY_WAIT_MS] of a join:
+     * join again, once per join (core's [ReplayWatch], as SeatSession does).
+     */
+    private val replayWatch = ReplayWatch(viewModelScope, REPLAY_WAIT_MS) {
+        if (channel.joined.value) {
+            Log.i("claudiverse", "seat $seatId: joined but no replay in ${REPLAY_WAIT_MS / 1000} s; joining again")
+            channel.join()
+        }
+    }
+
     init {
-        viewModelScope.launch { channel.events.collect(::onEvent) }
+        // Subscribed before join() below: a shared flow drops what is emitted with no subscriber, the replay included.
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { channel.events.collect(::onEvent) }
         viewModelScope.launch {
             channel.joined.collect { j ->
                 state.update { it.copy(joined = j) }
-                // A (re)join means the network is up again: fetch the seat now
-                // rather than waiting on a request that may have hung before it.
-                if (j) seatFetch.restart()
+                if (j) {
+                    // A (re)join means the network is up again: fetch the seat now
+                    // rather than waiting on a request that may have hung before it.
+                    seatFetch.restart()
+                    replayWatch.joined()
+                } else {
+                    replayWatch.unjoined()
+                }
             }
         }
         viewModelScope.launch { channel.error.collect { e -> state.update { it.copy(joinError = e) } } }
@@ -216,6 +236,7 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
 
 
     private fun onEvent(e: ChannelEvent) {
+        if (e.event == "replay") replayWatch.replayed()
         if (e.event == "session_ended") {
             state.update { it.copy(notice = "Session ended") }
             return
@@ -656,6 +677,8 @@ class SeatViewModel(private val app: AppContainer, val seatId: Long) : ViewModel
 
 private const val RESTART_WAIT_MS = 5 * 60_000L
 private const val ACCEPT_ALL_POLL_MS = 30_000L
+/** How long a joined seat waits for its replay before joining again; the same wait as core's SeatSession. */
+private const val REPLAY_WAIT_MS = 15_000L
 
 internal const val CANNOT_TAKE_BACK = "Already in Claude's queue: Claude Code cannot take back a queued message"
 
