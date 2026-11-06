@@ -94,7 +94,13 @@ class PhoenixSocket internal constructor(
     }
 
     inner class Channel internal constructor(val topic: String, private val params: JsonObject) {
-        private val eventsFlow = MutableSharedFlow<ChannelEvent>(extraBufferCapacity = 256)
+        /**
+         * Unbounded: an event is never dropped for a subscriber that is behind.
+         * With a 256-event buffer a busy seat's burst outran the slowest view
+         * (each rebuilds its transcript per event), and the overflow was dropped
+         * in silence: a message gone, or the replay itself, leaving a seat empty.
+         */
+        private val eventsFlow = MutableSharedFlow<ChannelEvent>(extraBufferCapacity = Int.MAX_VALUE)
         val events: SharedFlow<ChannelEvent> = eventsFlow.asSharedFlow()
 
         private val joinedState = MutableStateFlow(false)
@@ -202,7 +208,11 @@ class PhoenixSocket internal constructor(
                         sendJoin()
                     }
                 }
-                else -> eventsFlow.tryEmit(ChannelEvent(event, payload))
+                else -> {
+                    // Nothing listening: a shared flow discards the event (tryEmit still says true). Said, never silent.
+                    if (eventsFlow.subscriptionCount.value == 0) CoreLog.info("$topic: \"$event\" with no listener")
+                    if (!eventsFlow.tryEmit(ChannelEvent(event, payload))) CoreLog.info("$topic: dropped \"$event\": a subscriber is behind")
+                }
             }
         }
 

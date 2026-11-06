@@ -4,6 +4,7 @@ import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -89,15 +90,27 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
     private val feedLock = SynchronizedObject()
     private var fetch: Job? = null
     private val sends = Sends(client.api, client.outbox, seatId, scope)
+    private val replayWatch = ReplayWatch(scope, REPLAY_WAIT_MS) {
+        if (channel.joined.value) {
+            CoreLog.info("seat $seatId: joined but no replay in ${REPLAY_WAIT_MS / 1000} s; joining again")
+            channel.join()
+        }
+    }
 
     init {
-        scope.launch { channel.events.collect(::onEvent) }
+        // Subscribed before join() below: a shared flow drops what is emitted with no subscriber, the replay included.
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { channel.events.collect(::onEvent) }
         scope.launch {
             channel.joined.collect { j ->
                 state.update { it.copy(joined = j) }
                 // A (re)join means the network is up again: fetch the seat now
                 // rather than waiting on a request that may have hung before it.
-                if (j) restartFetch()
+                if (j) {
+                    restartFetch()
+                    replayWatch.joined()
+                } else {
+                    replayWatch.unjoined()
+                }
             }
         }
         scope.launch { channel.error.collect { e -> state.update { it.copy(joinError = e) } } }
@@ -174,6 +187,7 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
     }
 
     private fun onEvent(e: ChannelEvent) {
+        if (e.event == "replay") replayWatch.replayed()
         if (e.event == "session_ended") {
             state.update { it.copy(notice = "Session ended") }
             return
@@ -506,6 +520,8 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
 
     companion object {
         internal const val POLL_MS = 5_000L
+        /** How long a joined seat waits for its replay before joining again. */
+        internal const val REPLAY_WAIT_MS = 15_000L
         const val ALREADY_SENT = "Already sent: the seat is running it"
         const val TOO_LATE = "Too late: it has gone to the seat, and Claude Code cannot take back a queued message"
 

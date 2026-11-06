@@ -112,6 +112,18 @@ class SeatFeedTest {
         assertEquals(listOf("A:x", "P:Bash", "P:Edit", "A:y"), shape(feed))
     }
 
+    /** A rejoin's replay replaces the transcript: the same turns twice would be the next symptom. */
+    @Test
+    fun aSecondReplayReplacesTheFirst() {
+        val feed = SeatFeed()
+        feed.onEvent("replay", replay(assistant("u1", "a"), assistant("u2", "b")))
+        val once = feed.transcript().items.size
+        feed.onEvent("replay", replay(assistant("u1", "a"), assistant("u2", "b")))
+        assertEquals(once, feed.transcript().items.size)
+        feed.onEvent("replay", replay(assistant("u1", "a"), assistant("u2", "b"), assistant("u3", "c")))
+        assertEquals(once + 1, feed.transcript().items.size)
+    }
+
     /** The effort shown is the latest reply's, and it holds when later replies carry none. */
     @Test
     fun effortIsTheLatestReported() {
