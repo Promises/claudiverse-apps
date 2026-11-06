@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
  * the channel was last [unjoined], [rejoin] runs, once per join: a server that
  * never replays a seat must not be asked again every [waitMs].
  */
-internal class ReplayWatch(private val scope: CoroutineScope, private val waitMs: Long, private val rejoin: () -> Unit) {
+class ReplayWatch(private val scope: CoroutineScope, private val waitMs: Long, private val rejoin: () -> Unit) {
     private val lock = SynchronizedObject()
     /** No replay since the channel was last unjoined. The replay may come before the join reply marks it joined. */
     private var awaiting = true
