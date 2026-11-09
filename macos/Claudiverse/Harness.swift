@@ -21,7 +21,7 @@ import UserNotifications
  * profile {id} (open it in the Profiles section; {"new": true} for a new one),
  * adopt {seat} (open the Adopt sheet for it),
  * window {seat}, send {seat, text, now?}, reveal {text} (scroll open transcripts to
- * the first message containing it), preview {text, image?} (a window drawing that
+ * the first message containing it), openimage (open transcripts open their newest image in the viewer), preview {text, image?} (a window drawing that
  * Markdown as Claude's and the operator's bubbles; image: a server file path,
  * drawn in the operator's bubble as a stored image), notify {title, body}, log (core's last
  * 200 log lines), probe (the socket's heartbeat check), restarts (Settings → Restarts
@@ -33,6 +33,8 @@ import UserNotifications
 enum Harness {
     /// Posted by "reveal", its object the text to find; open transcripts scroll to it.
     static let reveal = Notification.Name("ClaudiverseHarnessReveal")
+    /// Posted by "openimage": open transcripts open their newest image in the viewer.
+    static let openImage = Notification.Name("ClaudiverseHarnessOpenImage")
     private static var model: AppModel?
     /// The "preview" window, reused by the next preview.
     private static var previewWindow: NSWindow?
@@ -203,6 +205,9 @@ enum Harness {
                 sending.removeAll { $0 === session }
             }
             return reply(["ok": true, "note": now ? "sent now: it interrupts a running turn" : "sent: it runs when the current turn ends"])
+        case "openimage":
+            NotificationCenter.default.post(name: openImage, object: nil)
+            return reply(["ok": true])
         case "reveal":
             guard let text = json["text"] as? String, !text.isEmpty else { return reply(["error": "text: what the message contains"]) }
             NotificationCenter.default.post(name: reveal, object: text)

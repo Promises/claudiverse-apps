@@ -125,6 +125,11 @@ struct TranscriptView: View {
             if index < start { firstKey = key }
             position.scrollTo(id: key, anchor: .top)
         }
+        .onReceive(NotificationCenter.default.publisher(for: Harness.openImage)) { _ in
+            // The newest image, opened as clicking it does.
+            let items = Self.images(rows)
+            if let last = items.last { viewer?.open(items, at: last.key) }
+        }
         #endif
     }
 
