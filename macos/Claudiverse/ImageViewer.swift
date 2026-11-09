@@ -65,8 +65,10 @@ private struct ImageViewer: View {
     var body: some View {
         if let i = model.index, model.items.indices.contains(i) {
             let item = model.items[i]
+            // Only the backdrop runs under the title bar and toolbar: the controls stay below them, where clicks
+            // reach them. Laid out up there (the backdrop sized the whole stack to the window), the window's own
+            // title bar took every click on the top row, and Copy, Save, Open and Close did nothing.
             ZStack {
-                Color.black.opacity(0.9).ignoresSafeArea().onTapGesture { model.close() }
                 ZoomableImage(item: item, access: app.access.value, onBackdrop: { model.close() })
                     .id(item.key)
                     .padding(.vertical, 56).padding(.horizontal, 64)
@@ -81,6 +83,7 @@ private struct ImageViewer: View {
                 }
                 .padding(.horizontal, 14)
             }
+            .background { Color.black.opacity(0.9).ignoresSafeArea().onTapGesture { model.close() } }
             .environment(\.colorScheme, .dark)
             .transition(.opacity)
         }
