@@ -134,19 +134,27 @@ class PhoenixSocket internal constructor(
             sendJoin()
         }
 
-        /** Give back one claim; the last one leaves the topic. */
+        /**
+         * Give back one claim; the last one leaves the topic. The count and the
+         * teardown are one step under the lock: a claim taken between them (a
+         * seat shown again as a board tile goes) used to get this channel just
+         * as it was torn down, left unwanted, unregistered and with no join
+         * ref, so its replay was dropped and the seat showed nothing.
+         */
         fun leave() {
-            val last = synchronized(lock) {
+            val leaving = synchronized(lock) {
                 users = (users - 1).coerceAtLeast(0)
-                users == 0
+                if (users > 0) return
+                wanted = false
+                joinedOn = null
+                if (channels[topic] === this) channels.remove(topic)
+                val ref = joinRef
+                joinRef = null
+                // Not nextRef(): it takes the lock, and the lock is not re-entrant on every platform.
+                ref?.let { it to (++refs).toString() }
             }
-            if (!last) return
-            wanted = false
             joinedState.value = false
-            joinRef?.let { send(it, nextRef(), topic, "phx_leave", JsonObject(emptyMap())) }
-            joinRef = null
-            synchronized(lock) { joinedOn = null }
-            synchronized(lock) { channels.remove(topic) }
+            leaving?.let { (join, ref) -> send(join, ref, topic, "phx_leave", JsonObject(emptyMap())) }
             closeIfUnused()
         }
 

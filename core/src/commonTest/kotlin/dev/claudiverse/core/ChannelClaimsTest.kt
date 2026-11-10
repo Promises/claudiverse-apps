@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -49,5 +50,28 @@ class ChannelClaimsTest {
         val b = socket.channel("session:2").also { it.join() }
         assertEquals(1, b.users)
         assertTrue(b.wanted)
+    }
+
+    /**
+     * Claims and leaves racing on one topic, as a board tile and the main
+     * window do: a claim held must always be on a wanted, registered channel.
+     * The last leave's count and teardown were two steps, and a claim taken
+     * between them got a channel being torn down; its seat showed nothing.
+     */
+    @Test
+    fun aClaimTakenWhileTheLastLeaveRunsKeepsAWantedChannel() = kotlinx.coroutines.runBlocking {
+        val broken = java.util.concurrent.atomic.AtomicInteger()
+        val workers = (1..2).map {
+            launch(Dispatchers.Default) {
+                repeat(200_000) {
+                    val c = socket.channel("session:3")
+                    c.join()
+                    if (!c.wanted) broken.incrementAndGet()
+                    c.leave()
+                }
+            }
+        }
+        workers.forEach { it.join() }
+        assertEquals(0, broken.get(), "claims that held an unwanted channel")
     }
 }

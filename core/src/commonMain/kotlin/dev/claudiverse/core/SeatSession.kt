@@ -507,6 +507,9 @@ class SeatSession internal constructor(private val client: ClaudiverseClient, va
 
     fun dismissNotice() = state.update { it.copy(notice = null) }
 
+    /** Ask for the seat's history again (a fresh join, answered by a replay): for a view that finds it missing. */
+    fun reload() = channel.join()
+
     fun close() {
         channel.leave()
         scope.cancel()
