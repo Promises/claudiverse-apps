@@ -98,9 +98,16 @@ struct ZaiCard: View {
     }
 }
 
-/// Add a key: the server checks it with Z.ai first, then stores it encrypted; the field is cleared after.
+/**
+ * Add a key: the server checks it with Z.ai first, then stores it encrypted.
+ * The key's field exists only while adding (a button opens it, Cancel or a
+ * stored key closes it and forgets what was typed): a secure field on screen
+ * can turn on Secure Keyboard Entry for the whole Mac, which stops other
+ * apps' hotkeys.
+ */
 struct ZaiAddForm: View {
     @Environment(AppModel.self) private var model
+    @State private var adding = false
     @State private var label = ""
     @State private var key = ""
     @State private var busy = false
@@ -108,22 +115,41 @@ struct ZaiAddForm: View {
     @FocusState private var keyFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Add a Z.ai key").font(.callout.weight(.medium))
-            HStack {
-                TextField("Name", text: $label, prompt: Text("coding plan")).frame(maxWidth: 200)
-                SecureField("API key", text: $key)
-                    .focused($keyFocused)
-                Button(busy ? "Checking…" : "Add Key") { add() }
-                    .disabled(busy || label.trimmingCharacters(in: .whitespaces).isEmpty || key.trimmingCharacters(in: .whitespaces).isEmpty)
+        Group {
+            if adding {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Add a Z.ai key").font(.callout.weight(.medium))
+                    HStack {
+                        TextField("Name", text: $label, prompt: Text("coding plan")).frame(maxWidth: 200)
+                        SecureField("API key", text: $key)
+                            .focused($keyFocused)
+                        Button("Cancel") { close() }.disabled(busy)
+                        Button(busy ? "Checking…" : "Add Key") { add() }
+                            .disabled(busy || label.trimmingCharacters(in: .whitespaces).isEmpty || key.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    if let error { Text(error).font(.callout).foregroundStyle(Theme.bad) }
+                }
+                .padding(14)
+                .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
+            } else {
+                Button("Add Z.ai Key…") { adding = true }
             }
-            if let error { Text(error).font(.callout).foregroundStyle(Theme.bad) }
         }
-        .padding(14)
-        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
         #if CLAUDIVERSE_HARNESS
-        .onReceive(NotificationCenter.default.publisher(for: Harness.focusSecret)) { _ in keyFocused = true }
+        .onReceive(NotificationCenter.default.publisher(for: Harness.focusSecret)) { _ in
+            adding = true
+            DispatchQueue.main.async { keyFocused = true }
+        }
         #endif
+    }
+
+    /// The form goes, and what was typed with it.
+    private func close() {
+        keyFocused = false
+        label = ""
+        key = ""
+        error = nil
+        adding = false
     }
 
     private func add() {
@@ -133,8 +159,7 @@ struct ZaiAddForm: View {
         Task {
             do {
                 _ = try await model.client.api.addZaiKey(label: name, key: secret)
-                label = ""
-                key = ""
+                close()
                 await model.pool.loadZai(model.client.api)
             } catch {
                 // The server's sentence ("Z.ai refused the key (401)"); never the key.
