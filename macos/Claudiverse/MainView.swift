@@ -33,6 +33,8 @@ struct MainView: View {
                 .id(model.section)
         }
         .overlay(alignment: .bottom) { SpawnBanner() }
+        // Seats asking for Trello write access: on top of whatever is shown, until decided here or elsewhere.
+        .overlay(alignment: .topTrailing) { TrelloRequestsStack().frame(maxWidth: 420).padding(16) }
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button { newSeat = true } label: { Label("New seat", systemImage: "plus") }

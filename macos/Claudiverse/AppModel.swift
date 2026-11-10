@@ -73,6 +73,8 @@ final class AppModel {
 
     /// Open requests from seats asking for the operator, by seat id.
     private(set) var needsYou: [Int64: HumanRequest] = [:]
+    /// Seats' requests for Trello write access waiting for the operator, newest first.
+    private(set) var trelloOpen: [TrelloWriteRequest] = []
     private(set) var spawnNotice: SpawnNotice?
     /// Messages waiting for their seat to go idle, all seats.
     private(set) var queued: [QueuedMessage] = []
@@ -217,6 +219,11 @@ final class AppModel {
         client = ClaudiverseClient(access: { box.value }, outboxStore: DefaultsOutboxStore())
         CoreLog.shared.sink = { line in log.info("\(line, privacy: .public)") }
         notifier.onOpen = { [weak self] seatId in self?.open(seatId: seatId) }
+        // A Trello request's notification opens the app, where its card is: approving is a deliberate click there.
+        notifier.onOpenTrello = { [weak self] in
+            self?.openMainWindow?()
+            NSApp.activate()
+        }
         #if CLAUDIVERSE_HARNESS
         Harness.start(self)
         #endif
@@ -271,6 +278,7 @@ final class AppModel {
         running.forEach { $0.cancel() }
         running = []
         client.humanRequests.stop()
+        client.trello.stop()
         client.fleets.stop()
         client.profiles.stop()
         client.poolEvents.stop()
@@ -281,6 +289,7 @@ final class AppModel {
         access.set(baseUrl: serverURL, token: "")
         seats = []
         needsYou = [:]
+        trelloOpen = []
         selectedSeat = nil
         email = nil
         phase = .signedOut
@@ -333,6 +342,7 @@ final class AppModel {
         phase = .signedIn
         client.socket.reconnectNow()
         client.humanRequests.start()
+        client.trello.start()
         client.fleets.start()
         client.profiles.start()
         client.poolEvents.start()
@@ -354,6 +364,13 @@ final class AppModel {
                     let byId = Dictionary(list.map { ($0.sessionId, $0) }, uniquingKeysWith: { first, _ in first })
                     self.notifier.update(byId)
                     self.needsYou = byId
+                }
+            },
+            Task { [weak self, client] in
+                for await open in client.trello.open {
+                    guard let self else { return }
+                    self.notifier.updateTrello(open)
+                    self.trelloOpen = open
                 }
             },
             Task { [weak self, client] in

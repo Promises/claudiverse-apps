@@ -13,11 +13,18 @@ import UserNotifications
 @Observable
 final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     @ObservationIgnored var onOpen: ((Int64) -> Void)?
+    /// A Trello write request's notification was clicked.
+    @ObservationIgnored var onOpenTrello: (() -> Void)?
     /// False when macOS has notifications for this app switched off; nil until known.
     private(set) var allowed: Bool?
     /// What each seat was last notified for: its request id and when the request last changed.
     @ObservationIgnored private var told: [Int64: String] = [:]
     @ObservationIgnored private var first = true
+    /// The same for Trello write requests, by request id.
+    @ObservationIgnored private var toldTrello: [Int64: String] = [:]
+    @ObservationIgnored private var firstTrello = true
+    @ObservationIgnored private var seatsAsking = 0
+    @ObservationIgnored private var trelloAsking = 0
 
     override init() {
         super.init()
@@ -72,8 +79,46 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         gone.forEach { told[$0] = nil }
         center.removeDeliveredNotifications(withIdentifiers: gone.map(id))
         first = false
-        NSApplication.shared.dockTile.badgeLabel = open.isEmpty ? nil : "\(open.count)"
+        seatsAsking = open.count
+        updateBadge()
     }
+
+    /**
+     * Open Trello write requests now, as for seats: a notification once per
+     * request (and again when the seat asks again), none for those already
+     * open at launch, and one decided or gone takes its notification with it.
+     */
+    func updateTrello(_ open: [TrelloWriteRequest]) {
+        let center = UNUserNotificationCenter.current()
+        for r in open {
+            let stamp = r.updatedAt ?? r.insertedAt ?? ""
+            if toldTrello[r.id] == stamp { continue }
+            toldTrello[r.id] = stamp
+            if firstTrello { continue }
+            let content = UNMutableNotificationContent()
+            content.title = "Trello write access"
+            content.body = r.prompt + (r.reason.map { ": \($0)" } ?? "")
+            content.sound = Self.sound
+            content.userInfo = ["trello": r.id]
+            center.add(UNNotificationRequest(identifier: trelloId(r.id), content: content, trigger: nil)) { error in
+                log.notice("notification for trello request \(r.id): \(error?.localizedDescription ?? "posted", privacy: .public)")
+            }
+        }
+        let ids = Set(open.map(\.id))
+        let gone = toldTrello.keys.filter { !ids.contains($0) }
+        gone.forEach { toldTrello[$0] = nil }
+        center.removeDeliveredNotifications(withIdentifiers: gone.map(trelloId))
+        firstTrello = false
+        trelloAsking = open.count
+        updateBadge()
+    }
+
+    private func updateBadge() {
+        let n = seatsAsking + trelloAsking
+        NSApplication.shared.dockTile.badgeLabel = n == 0 ? nil : "\(n)"
+    }
+
+    private func trelloId(_ id: Int64) -> String { "trello-\(id)" }
 
     /// The poke's name in ~/Library/Sounds: the app's own, so it cannot clash with another app's sound.
     private static let soundFile = "Claudiverse Poke.caf"
@@ -106,7 +151,12 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     private func id(_ seat: Int64) -> String { "seat-\(seat)" }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        guard let seat = response.notification.request.content.userInfo["seat"] as? Int64 else { return }
+        let info = response.notification.request.content.userInfo
+        if info["trello"] != nil {
+            await MainActor.run { onOpenTrello?() }
+            return
+        }
+        guard let seat = info["seat"] as? Int64 else { return }
         await MainActor.run { onOpen?(seat) }
     }
 

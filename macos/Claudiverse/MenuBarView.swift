@@ -18,6 +18,7 @@ struct MenuBarView: View {
             NotificationsOffNote(notifier: model.notifier)
             switch model.phase {
             case .signedIn:
+                TrelloRequestsStack()
                 if model.needsYou.isEmpty {
                     Text("No seat is asking for you.").foregroundStyle(.secondary).font(.callout)
                 } else {
