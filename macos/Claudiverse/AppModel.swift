@@ -212,6 +212,7 @@ final class AppModel {
     private var running: [Task<Void, Never>] = []
 
     init() {
+        Self.endSecureEditingWhenLeft()
         let box = access
         client = ClaudiverseClient(access: { box.value }, outboxStore: DefaultsOutboxStore())
         CoreLog.shared.sink = { line in log.info("\(line, privacy: .public)") }
@@ -305,6 +306,28 @@ final class AppModel {
     }
 
     // MARK: running
+
+    /**
+     * Secure Keyboard Entry is on for the whole Mac while a password or key
+     * field edits in a key window, and other apps' global hotkeys (skhd, say)
+     * stop working. A secure field left focused turns it on again whenever
+     * its window comes back, unasked. So when the app goes to the background
+     * or a window stops being key, a secure field being edited there stops
+     * editing; a click puts the cursor back.
+     */
+    static func endSecureEditingWhenLeft() {
+        let end = { (window: NSWindow?) in
+            guard let window, let editor = window.firstResponder as? NSTextView, editor.delegate is NSSecureTextField else { return }
+            window.makeFirstResponder(nil)
+        }
+        let center = NotificationCenter.default
+        center.addObserver(forName: NSApplication.willResignActiveNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { NSApp.windows.forEach(end) }
+        }
+        center.addObserver(forName: NSWindow.didResignKeyNotification, object: nil, queue: .main) { note in
+            MainActor.assumeIsolated { end(note.object as? NSWindow) }
+        }
+    }
 
     private func begin() {
         phase = .signedIn

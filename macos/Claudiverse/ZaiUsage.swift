@@ -105,6 +105,7 @@ struct ZaiAddForm: View {
     @State private var key = ""
     @State private var busy = false
     @State private var error: String?
+    @FocusState private var keyFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -112,6 +113,7 @@ struct ZaiAddForm: View {
             HStack {
                 TextField("Name", text: $label, prompt: Text("coding plan")).frame(maxWidth: 200)
                 SecureField("API key", text: $key)
+                    .focused($keyFocused)
                 Button(busy ? "Checking…" : "Add Key") { add() }
                     .disabled(busy || label.trimmingCharacters(in: .whitespaces).isEmpty || key.trimmingCharacters(in: .whitespaces).isEmpty)
             }
@@ -119,6 +121,9 @@ struct ZaiAddForm: View {
         }
         .padding(14)
         .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
+        #if CLAUDIVERSE_HARNESS
+        .onReceive(NotificationCenter.default.publisher(for: Harness.focusSecret)) { _ in keyFocused = true }
+        #endif
     }
 
     private func add() {
