@@ -73,6 +73,9 @@ final class AppModel {
 
     /// Open requests from seats asking for the operator, by seat id.
     private(set) var needsYou: [Int64: HumanRequest] = [:]
+    /// Bumped on each "host_reboot" event: the machine list reads itself again, so it always shows the newest.
+    private(set) var rebootEvents = 0
+
     /// Seats' requests for Trello write access waiting for the operator, newest first.
     private(set) var trelloOpen: [TrelloWriteRequest] = []
     private(set) var spawnNotice: SpawnNotice?
@@ -283,6 +286,7 @@ final class AppModel {
         client.profiles.stop()
         client.poolEvents.stop()
         client.restarts.stop()
+        client.reboots.stop()
         recentSeats.forEach { $0.close() }
         recentSeats = []
         await Task.detached { TokenStore.delete() }.value
@@ -347,6 +351,7 @@ final class AppModel {
         client.profiles.start()
         client.poolEvents.start()
         client.restarts.start()
+        client.reboots.start()
         client.models.refresh()
         drafts.removeStalePastes()
         notifier.requestPermission()
@@ -365,6 +370,9 @@ final class AppModel {
                     self.notifier.update(byId)
                     self.needsYou = byId
                 }
+            },
+            Task { [weak self, client] in
+                for await _ in client.reboots.reboots { self?.rebootEvents += 1 }
             },
             Task { [weak self, client] in
                 for await open in client.trello.open {

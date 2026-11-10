@@ -41,6 +41,8 @@ struct MachinesSettings: View {
             }
         }
         .sheet(isPresented: $addingMachine) { AddMachineSheet(onDone: { Task { await load() } }) }
+        // A machine's safe reboot changed: read the list now rather than at the next 5 s.
+        .onChange(of: model.rebootEvents) { Task { await load() } }
     }
 
     private func load() async {
@@ -94,6 +96,7 @@ struct MachineSection: View {
                 TextField("ssh", text: Binding(get: { sshTarget }, set: { sshTarget = $0; TerminalOpener.setSshTarget($0, for: host.name) }),
                           prompt: Text("user@address, for Open terminal from this Mac"))
             }
+            MachineReboot(host: host)
             if let error { Text(error).font(.callout).foregroundStyle(Theme.bad) }
         } header: {
             HStack {
