@@ -201,6 +201,8 @@ data class Host(
     val lastSeenAt: String? = null,
     /** What a plain spawn may ask this machine for (host agent 0.13+); null from an older agent. */
     val spawn: SpawnChoices? = null,
+    /** Its safe reboot (host agent 0.23+); null from an older agent or offline: show nothing then. */
+    val reboot: HostReboot? = null,
 ) {
     /** The runtime a spawned or restarted seat gets ([SpawnChoices.runtime] among [runtimes]); null when the agent does not say. */
     val spawnRuntime: HostRuntime? get() = spawn?.runtime?.let { r -> runtimes.firstOrNull { it.name == r } }
@@ -224,6 +226,7 @@ data class Host(
                     pi = it.obj("pi")?.let(PiChoices::from),
                 )
             },
+            reboot = HostReboot.from(o.obj("reboot")),
         )
     }
 }

@@ -20,6 +20,7 @@ class ClaudiverseClient(access: () -> ServerAccess, outboxStore: OutboxStore) {
     val outbox = Outbox(outboxStore, api, scope)
     val humanRequests = HumanRequests(api, socket, scope)
     val trello = TrelloRequests(api, socket, scope)
+    val reboots = Reboots(socket, scope)
     val spawns = SpawnTracker(api, socket, scope)
     val fleets = Fleets(api, socket, scope)
     val profiles = Profiles(api, socket, scope)
@@ -39,6 +40,7 @@ class ClaudiverseClient(access: () -> ServerAccess, outboxStore: OutboxStore) {
     fun close() {
         humanRequests.stop()
         trello.stop()
+        reboots.stop()
         fleets.stop()
         profiles.stop()
         poolEvents.stop()

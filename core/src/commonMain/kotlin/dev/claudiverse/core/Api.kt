@@ -358,6 +358,26 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
     @Throws(Exception::class)
     suspend fun hosts(): List<Host> = getList(listOf("hosts"), "hosts").map(Host::from)
 
+    /** Write down every seat and runner slot on [host]; after its reboot it reopens them by itself. App or super token; 409 before agent 0.23, 504 offline. */
+    @Throws(Exception::class)
+    suspend fun prepareReboot(host: String): RebootSummary = RebootSummary.from(post(listOf("hosts", host, "prepare_reboot")))
+
+    /** A machine's safe reboot as it reports it; null from an older agent or offline. App or super token. */
+    @Throws(Exception::class)
+    suspend fun hostReboot(host: String): HostReboot? = HostReboot.from(get("hosts", host, "reboot").obj("reboot"))
+
+    /** Reopen what an unprepared reboot left; the outcome comes as "host_reopen" ([Reboots]). 409 [AlreadyReopening], 404 [NothingToReopen]. */
+    @Throws(Exception::class)
+    suspend fun reopenSeats(host: String): String = try {
+        post(listOf("hosts", host, "reopen_seats")).requireStr("reopen_id")
+    } catch (e: ApiException) {
+        when (e.httpStatus) {
+            409 -> throw AlreadyReopening(e.message ?: "A reopen is running already")
+            404 -> throw NothingToReopen(e.message ?: "Nothing to reopen")
+            else -> throw e
+        }
+    }
+
     @Throws(Exception::class)
     suspend fun recentDirs(host: String): List<RecentDir> =
         getList(listOf("hosts", host, "recent_dirs"), "dirs").map(RecentDir::from)
