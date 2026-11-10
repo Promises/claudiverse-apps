@@ -15,6 +15,7 @@ import dev.claudiverse.core.ModelCatalogs
 import dev.claudiverse.core.Api
 import dev.claudiverse.core.CoreLog
 import dev.claudiverse.core.HumanRequests
+import dev.claudiverse.core.TrelloRequests
 import dev.claudiverse.core.PoolEvents
 import dev.claudiverse.core.Restarts
 import dev.claudiverse.core.Profiles
@@ -48,6 +49,13 @@ class AppContainer private constructor(context: Context) {
     val drafts = Drafts(context)
     val socket = PhoenixSocket({ settings.config.value.access }, scope)
     val humanRequests = HumanRequests(api, socket, scope)
+    /** Seats' Trello write requests and grants; live while the watch service, the seat list or Trello write access watches them. */
+    val trello = TrelloRequests(api, socket, scope)
+    private var trelloWatchers = 0
+
+    fun watchTrello() = synchronized(this) { if (trelloWatchers++ == 0) trello.start() }
+
+    fun unwatchTrello() = synchronized(this) { if (--trelloWatchers == 0) trello.stop() }
     /** Turns the app's VPN on away from the server's network and off on it. */
     val autoVpn = AutoVpn(context, settings, vpn, scope)
     /** Updates this app from the build the server holds. */

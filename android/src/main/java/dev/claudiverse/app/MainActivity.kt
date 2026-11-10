@@ -42,6 +42,8 @@ class MainActivity : ComponentActivity() {
     private val openSeat = MutableStateFlow<SeatLink?>(null)
     /** A pool account to re-authorize, from a "needs re-auth" notification; the Pool tab opens it and clears it. */
     private val openReauth = MutableStateFlow<Long?>(null)
+    /** A Trello write request to review, from its notification; AppRoot opens Trello write access and clears it. */
+    private val openTrello = MutableStateFlow<Long?>(null)
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) toast("Without notifications you will not hear when a seat needs you")
@@ -83,6 +85,7 @@ class MainActivity : ComponentActivity() {
                     app,
                     openSeat = openSeat,
                     openReauth = openReauth,
+                    openTrello = openTrello,
                     VpnActions(
                         profile = profile,
                         import = { picker.launch(arrayOf("*/*")) },
@@ -108,6 +111,11 @@ class MainActivity : ComponentActivity() {
         if (account >= 0) {
             openReauth.value = account
             intent?.removeExtra(WatchService.EXTRA_REAUTH_ACCOUNT_ID)
+        }
+        val trello = intent?.getLongExtra(WatchService.EXTRA_TRELLO_REQUEST_ID, -1) ?: -1
+        if (trello >= 0) {
+            openTrello.value = trello
+            intent?.removeExtra(WatchService.EXTRA_TRELLO_REQUEST_ID)
         }
         val id = intent?.getLongExtra(WatchService.EXTRA_SEAT_ID, -1) ?: -1
         if (id < 0) return

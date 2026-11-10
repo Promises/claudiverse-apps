@@ -67,6 +67,7 @@ fun ConnectionScreen(
     updates: AppUpdates,
     testServer: suspend () -> String,
     account: AccountActions,
+    onTrello: () -> Unit,
 ) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
@@ -75,7 +76,7 @@ fun ConnectionScreen(
         VpnCard(vpn, profile, onImport, onConnect, onDisconnect, onSaveCredentials)
         AccountCard(config, account)
         ServerCard(config, onSaveConfig, testServer)
-        NotifyCard(config, onSaveConfig, requestsSupported)
+        NotifyCard(config, onSaveConfig, requestsSupported, onTrello)
         UpdateCard(updates)
     }
 }
@@ -240,7 +241,7 @@ private fun UpdateCard(updates: AppUpdates) {
  * to save battery, so it only stays reliable when the app is exempt.
  */
 @Composable
-private fun NotifyCard(config: ServerConfig, onSave: (ServerConfig) -> Unit, supportedFlow: StateFlow<Boolean>) {
+private fun NotifyCard(config: ServerConfig, onSave: (ServerConfig) -> Unit, supportedFlow: StateFlow<Boolean>, onTrello: () -> Unit) {
     val context = LocalContext.current
     val supported by supportedFlow.collectAsStateWithLifecycle()
     val power = context.getSystemService(PowerManager::class.java)
@@ -254,7 +255,7 @@ private fun NotifyCard(config: ServerConfig, onSave: (ServerConfig) -> Unit, sup
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Seats that need you", style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Notify me when a seat asks for me (keeps a quiet notification while it listens)",
+                Text("Notify me when a seat asks for me or for Trello write access (keeps a quiet notification while it listens)",
                     modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                 Switch(config.notifyRequests, { onSave(config.copy(notifyRequests = it)) })
             }
@@ -270,6 +271,8 @@ private fun NotifyCard(config: ServerConfig, onSave: (ServerConfig) -> Unit, sup
                     OutlinedButton(onClick = { context.startActivity(ask) }) { Text("Allow background use") }
                 }
             }
+            // Which seats may write to which boards, and requests decided: revoke from there.
+            OutlinedButton(onClick = onTrello) { Text("Trello write access…") }
         }
     }
 }

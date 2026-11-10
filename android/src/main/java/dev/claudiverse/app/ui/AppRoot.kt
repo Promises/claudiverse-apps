@@ -31,6 +31,9 @@ import dev.claudiverse.app.spawn.NewSeatViewModel
 import dev.claudiverse.app.spawn.AutoRestartViewModel
 import dev.claudiverse.app.spawn.RestartIdleViewModel
 import dev.claudiverse.core.SpawnNotice
+import dev.claudiverse.app.trello.TrelloViewModel
+import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.DisposableEffect
 import kotlinx.coroutines.launch
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -90,7 +93,13 @@ data class SeatLink(val id: Long, val title: String)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppRoot(app: AppContainer, openSeat: MutableStateFlow<SeatLink?>, openReauth: MutableStateFlow<Long?>, vpnActions: VpnActions) {
+fun AppRoot(
+    app: AppContainer,
+    openSeat: MutableStateFlow<SeatLink?>,
+    openReauth: MutableStateFlow<Long?>,
+    openTrello: MutableStateFlow<Long?>,
+    vpnActions: VpnActions,
+) {
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
@@ -119,6 +128,13 @@ fun AppRoot(app: AppContainer, openSeat: MutableStateFlow<SeatLink?>, openReauth
     val reauth by openReauth.collectAsStateWithLifecycle()
     LaunchedEffect(reauth) {
         if (reauth != null && nav.currentBackStackEntry?.destination?.route != "pool") nav.navigate("pool") { launchSingleTop = true }
+    }
+    // A Trello write request's notification: Trello write access, where it is approved or denied.
+    val trelloLink by openTrello.collectAsStateWithLifecycle()
+    LaunchedEffect(trelloLink) {
+        if (trelloLink == null) return@LaunchedEffect
+        nav.navigate("trello") { launchSingleTop = true }
+        openTrello.value = null
     }
 
     // New seat is a full-screen step (design): no app bar or tabs while it is open.
@@ -231,10 +247,19 @@ fun AppRoot(app: AppContainer, openSeat: MutableStateFlow<SeatLink?>, openReauth
                 NewSeatScreen(viewModel { NewSeatViewModel(app) }, onClose = { nav.popBackStack() })
             }
             composable("seats") {
-                SeatsScreen(viewModel { RemoteViewModel(pollMs = 10_000) { app.api.seats(app.seatsIncludeStopped.value) } }, app.seatsIncludeStopped, app.outbox.items, app.humanRequests.open) { seat ->
-                    nav.navigate("seat/${seat.id}?title=${Uri.encode(seat.label)}")
+                // Seats asking for Trello write access show above the list, also with notifications off.
+                DisposableEffect(Unit) {
+                    app.watchTrello()
+                    onDispose { app.unwatchTrello() }
+                }
+                Column {
+                    TrelloAskingBanner(app.trello.open, onOpen = { nav.navigate("trello") })
+                    SeatsScreen(viewModel { RemoteViewModel(pollMs = 10_000) { app.api.seats(app.seatsIncludeStopped.value) } }, app.seatsIncludeStopped, app.outbox.items, app.humanRequests.open) { seat ->
+                        nav.navigate("seat/${seat.id}?title=${Uri.encode(seat.label)}")
+                    }
                 }
             }
+            composable("trello") { TrelloScreen(viewModel { TrelloViewModel(app) }) }
             composable(
                 "seat/{id}?title={title}",
                 arguments = listOf(navArgument("id") { type = NavType.LongType }, navArgument("title") { nullable = true }),
@@ -327,6 +352,7 @@ fun AppRoot(app: AppContainer, openSeat: MutableStateFlow<SeatLink?>, openReauth
                             },
                         )
                     },
+                    onTrello = { nav.navigate("trello") },
                 )
             }
         }
@@ -355,6 +381,7 @@ private fun titleFor(route: String?, args: android.os.Bundle?): String = when {
     route == "profiles" -> "Profiles"
     route == "restart-idle" -> "Restart idle seats"
     route == "auto-restart" -> "Auto-restart"
+    route == "trello" -> "Trello write access"
     route.startsWith("profile/") -> if (args?.getLong("id") == NEW_PROFILE) "New profile" else "Profile"
     else -> TABS.firstOrNull { it.route == route }?.label ?: "Claudiverse"
 }

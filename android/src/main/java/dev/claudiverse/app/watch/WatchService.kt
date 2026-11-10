@@ -20,6 +20,8 @@ import dev.claudiverse.app.MainActivity
 import dev.claudiverse.app.R
 import dev.claudiverse.core.HumanRequest
 import dev.claudiverse.core.PoolChange
+import dev.claudiverse.core.TrelloWriteRequest
+import dev.claudiverse.app.trello.trelloNotifyPlan
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
@@ -39,6 +41,9 @@ class WatchService : Service() {
     private val app by lazy { AppContainer.get(this) }
     private var watching: Job? = null
     private var watchingPool: Job? = null
+    private var watchingTrello: Job? = null
+    /** Trello write requests whose notification is up, with the change it shows; a request asked again alerts again. */
+    private val trelloShown = mutableMapOf<Long, Long>()
     /** Pool accounts whose "needs re-auth" notification is up. */
     private val reauthShown = mutableSetOf<Long>()
     /** Request id and last update per seat already shown, so an unchanged request does not alert again. */
@@ -55,6 +60,8 @@ class WatchService : Service() {
         )
         app.humanRequests.start()
         watching = app.scope.launch { app.humanRequests.open.collect(::show) }
+        app.watchTrello()
+        watchingTrello = app.scope.launch { app.trello.open.collect(::showTrello) }
         app.watchPool()
         watchingPool = app.scope.launch {
             // What needs re-auth now, also what broke while the app was not listening.
@@ -73,6 +80,8 @@ class WatchService : Service() {
     override fun onDestroy() {
         watching?.cancel()
         watchingPool?.cancel()
+        watchingTrello?.cancel()
+        app.unwatchTrello()
         app.unwatchPool()
         app.humanRequests.stop()
         super.onDestroy()
@@ -90,6 +99,38 @@ class WatchService : Service() {
             if (shown[r.sessionId] == stamp) return@forEach
             shown[r.sessionId] = stamp
             nm.notify(requestId(r.sessionId), requestNotification(r))
+        }
+    }
+
+    /**
+     * A notification per open Trello write request; it opens Trello write
+     * access, where it is approved or denied (never from the notification:
+     * write access is worth a deliberate tap in the app). Gone once decided,
+     * on any device.
+     */
+    private fun showTrello(open: List<TrelloWriteRequest>) {
+        val nm = getSystemService(NotificationManager::class.java)
+        val plan = trelloNotifyPlan(open, trelloShown)
+        plan.cancel.forEach { id ->
+            nm.cancel(trelloId(id))
+            trelloShown.remove(id)
+        }
+        if (!canNotify()) return
+        plan.post.forEach { r ->
+            trelloShown[r.id] = r.changedAtMs
+            nm.notify(
+                trelloId(r.id),
+                NotificationCompat.Builder(this, CHANNEL_TRELLO)
+                    .setSmallIcon(R.drawable.ic_stat_claudiverse)
+                    .setContentTitle(r.prompt)
+                    .setContentText(r.reason ?: "Tap to approve or deny")
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(listOfNotNull(r.reason, "Tap to approve or deny").joinToString("\n\n")))
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                    .setAutoCancel(true)
+                    .setContentIntent(openTrello(this, r.id))
+                    .build(),
+            )
         }
     }
 
@@ -158,16 +199,31 @@ class WatchService : Service() {
         private val OLD_CHANNELS_REQUESTS = listOf("human_requests", "human_requests_poke")
         const val CHANNEL_WATCHING = "watching"
         const val CHANNEL_POOL = "pool_accounts"
+        const val CHANNEL_TRELLO = "trello_write_requests"
+        const val EXTRA_TRELLO_REQUEST_ID = "dev.claudiverse.app.TRELLO_REQUEST_ID"
         const val EXTRA_SEAT_ID = "dev.claudiverse.app.SEAT_ID"
         const val EXTRA_SEAT_TITLE = "dev.claudiverse.app.SEAT_TITLE"
         private const val ONGOING_ID = 0x0c1a
         private const val REQUEST_BASE = 0x1000
         private const val REAUTH_BASE = 0x2000_0000
+        private const val TRELLO_BASE = 0x3000_0000
         const val EXTRA_REAUTH_ACCOUNT_ID = "dev.claudiverse.app.REAUTH_ACCOUNT_ID"
 
         private fun requestId(seatId: Long) = REQUEST_BASE + (seatId % 0x0fff_ffff).toInt()
 
         private fun reauthId(accountId: Long) = REAUTH_BASE + (accountId % 0x0fff_ffff).toInt()
+
+        private fun trelloId(requestId: Long) = TRELLO_BASE + (requestId % 0x0fff_ffff).toInt()
+
+        /** Opens the app on Trello write access, where this request is approved or denied. */
+        fun openTrello(context: Context, requestId: Long): PendingIntent =
+            PendingIntent.getActivity(
+                context, trelloId(requestId),
+                Intent(context, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    .putExtra(EXTRA_TRELLO_REQUEST_ID, requestId),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
 
         /** Opens the app on the Pool tab with this account's Re-authorize. */
         fun openReauth(context: Context, accountId: Long): PendingIntent =
@@ -210,6 +266,10 @@ class WatchService : Service() {
             nm.createNotificationChannel(
                 NotificationChannel(CHANNEL_POOL, "Accounts that need re-auth", NotificationManager.IMPORTANCE_HIGH)
                     .apply { description = "A pool account the server can no longer use until it is signed in again" },
+            )
+            nm.createNotificationChannel(
+                NotificationChannel(CHANNEL_TRELLO, "Trello write requests", NotificationManager.IMPORTANCE_HIGH)
+                    .apply { description = "A seat asks for write access to a Trello board" },
             )
             nm.createNotificationChannel(
                 NotificationChannel(CHANNEL_WATCHING, "Watching", NotificationManager.IMPORTANCE_MIN)
