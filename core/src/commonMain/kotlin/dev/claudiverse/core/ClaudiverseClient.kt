@@ -19,6 +19,7 @@ class ClaudiverseClient(access: () -> ServerAccess, outboxStore: OutboxStore) {
     val socket = PhoenixSocket(access, scope)
     val outbox = Outbox(outboxStore, api, scope)
     val humanRequests = HumanRequests(api, socket, scope)
+    val trello = TrelloRequests(api, socket, scope)
     val spawns = SpawnTracker(api, socket, scope)
     val fleets = Fleets(api, socket, scope)
     val profiles = Profiles(api, socket, scope)
@@ -37,6 +38,7 @@ class ClaudiverseClient(access: () -> ServerAccess, outboxStore: OutboxStore) {
     /** Stop everything: the socket closes, polling ends. */
     fun close() {
         humanRequests.stop()
+        trello.stop()
         fleets.stop()
         profiles.stop()
         poolEvents.stop()

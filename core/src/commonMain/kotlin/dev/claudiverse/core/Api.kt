@@ -310,6 +310,48 @@ class Api internal constructor(private val access: () -> ServerAccess, private v
     suspend fun resolveHumanRequests(seatId: Long): Int =
         post(listOf("sessions", "$seatId", "human_requests", "resolve")).int("resolved") ?: 0
 
+    // --- Trello write access ---
+
+    /** Seats' requests for Trello write access: open ones newest first, then decided in the last 30 days. App or super token. */
+    @Throws(Exception::class)
+    suspend fun trelloWriteRequests(): List<TrelloWriteRequest> =
+        getList(listOf("trello", "write_requests"), "requests").map(TrelloWriteRequest::from)
+
+    /** Approve: the seat may create, move and comment on that one board until revoked. 409 [TrelloAlreadyDecided], 404 [TrelloRequestGone]. */
+    @Throws(Exception::class)
+    suspend fun approveTrelloWrite(id: Long): TrelloApproval {
+        val o = trelloDecision(id, "approve")
+        return TrelloApproval(TrelloWriteRequest.from(o.obj("request") ?: throw ApiException("Server sent no request")), o.obj("grant")?.let(TrelloGrant::from))
+    }
+
+    /** Deny. 409 [TrelloAlreadyDecided], 404 [TrelloRequestGone]. */
+    @Throws(Exception::class)
+    suspend fun denyTrelloWrite(id: Long): TrelloWriteRequest =
+        TrelloWriteRequest.from(trelloDecision(id, "deny").obj("request") ?: throw ApiException("Server sent no request"))
+
+    private suspend fun trelloDecision(id: Long, action: String): JsonObject = try {
+        post(listOf("trello", "write_requests", "$id", action))
+    } catch (e: ApiException) {
+        when (e.httpStatus) {
+            409 -> throw TrelloAlreadyDecided(e.message ?: "Already decided", e.body?.obj("request")?.let { runCatching { TrelloWriteRequest.from(it) }.getOrNull() })
+            404 -> throw TrelloRequestGone(e.message ?: "No such request")
+            else -> throw e
+        }
+    }
+
+    /** Seats' write access to Trello boards. App or super token. */
+    @Throws(Exception::class)
+    suspend fun trelloGrants(): List<TrelloGrant> = getList(listOf("trello", "grants"), "grants").map(TrelloGrant::from)
+
+    /** Take a seat's write access to a board away; the seat is told. App or super token. */
+    @Throws(Exception::class)
+    suspend fun revokeTrelloGrant(id: Long) {
+        // 204, no body: only the status matters.
+        request(HttpMethod.Delete, url(listOf("trello", "grants", "$id")), token = access().token).let { reply ->
+            if (reply.code !in 200..299) throw failure(reply, parse(reply.body) as? JsonObject)
+        }
+    }
+
     // --- machines ---
 
     /** Machines with a host agent: online, running seats, allowed roots. */
