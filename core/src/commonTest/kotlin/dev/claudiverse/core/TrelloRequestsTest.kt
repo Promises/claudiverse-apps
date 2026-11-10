@@ -10,6 +10,7 @@ import io.ktor.http.headersOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -135,5 +136,16 @@ class TrelloRequestsTest {
         s = TrelloRequests(api, PhoenixSocket({ ServerAccess("", "") }, scope), scope)
         s.refresh()
         assertEquals(listOf(9L), s.requests.value.map { it.id })
+    }
+
+    /** Approved on another device: the grant shows at once, not at the next two-minute read. */
+    @Test
+    fun anApprovalElsewhereBringsItsGrant() = kotlinx.coroutines.runBlocking {
+        val grant = """{"id":2,"seat_title":"pm-seat","board":"AbCd1234","board_name":"Example Board","request_id":4,"granted_at":"2026-11-10T12:06:00Z"}"""
+        val s = store(empty + ("GET /api/trello/grants" to (HttpStatusCode.OK to """{"grants":[$grant]}""")))
+        s.onEvent("trello_write_request_decided", json(req(4, status = "approved", decided = "2026-11-10T12:06:00Z")))
+        // The read runs in the background: wait for it, well under the two-minute recheck.
+        kotlinx.coroutines.withTimeout(5_000) { s.grants.first { it.isNotEmpty() } }
+        assertEquals(listOf(2L), s.grants.value.map { it.id })
     }
 }

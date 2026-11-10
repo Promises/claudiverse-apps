@@ -234,7 +234,11 @@ class TrelloRequests(private val api: Api, private val socket: PhoenixSocket, pr
     internal fun onEvent(event: String, payload: JsonObject) {
         when (event) {
             "trello_write_request", "trello_write_request_decided" ->
-                runCatching { TrelloWriteRequest.from(payload) }.getOrNull()?.let(::upsert)
+                runCatching { TrelloWriteRequest.from(payload) }.getOrNull()?.let { r ->
+                    upsert(r)
+                    // Approved on another device: its grant is not in the event, so read the grants now.
+                    if (r.status == "approved") scope.launch { refresh() }
+                }
             "trello_write_grant_revoked" -> payload.long("id")?.let { id ->
                 synchronized(lock) {
                     grantsById.remove(id)
