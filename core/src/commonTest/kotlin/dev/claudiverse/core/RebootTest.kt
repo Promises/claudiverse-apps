@@ -71,13 +71,12 @@ class RebootTest {
     }
 
     @Test
-    fun aHostRebootEventReplacesTheListsCopy() {
+    fun aHostRebootEventIsKeptByMachine() {
         val r = reboots()
-        val listed = Host.from(json("""{"name":"my-mac","online":true,"seats":2,"roots":[],"reboot":{"recoverable":$brief}}"""))
-        assertNotNull(r.rebootOf(listed)?.recoverable)
         r.onEvent("host_reboot", json("""{"host":"my-mac","reboot":{"recoverable":null,"prepared":$brief,"last_reopen":null,"reopening":null}}"""))
-        assertNull(r.rebootOf(listed)?.recoverable)
-        assertNotNull(r.rebootOf(listed)?.prepared)
+        assertNotNull(r.reboots.value["my-mac"]?.prepared)
+        r.onEvent("host_reboot", json("""{"host":"my-mac","reboot":null}"""))
+        assertTrue("my-mac" in r.reboots.value && r.reboots.value["my-mac"] == null, "an agent that stops offering it says so")
     }
 
     @Test

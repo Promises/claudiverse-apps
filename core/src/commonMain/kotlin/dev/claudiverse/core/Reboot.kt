@@ -226,7 +226,11 @@ object RebootWording {
  */
 class Reboots(private val socket: PhoenixSocket, private val scope: CoroutineScope) {
     private val rebootsState = MutableStateFlow<Map<String, HostReboot?>>(emptyMap())
-    /** Machines whose reboot changed since start, by name: newer than the host list's copy. */
+    /**
+     * What each machine's last "host_reboot" said, by name: a signal to read
+     * the machine list again, which is the copy to show (an event's copy here
+     * goes stale once the list is newer).
+     */
     val reboots: StateFlow<Map<String, HostReboot?>> = rebootsState.asStateFlow()
 
     private val doneState = MutableStateFlow<Map<String, ReopenDone>>(emptyMap())
@@ -257,9 +261,6 @@ class Reboots(private val socket: PhoenixSocket, private val scope: CoroutineSco
 
     /** The finished reopen with this id, whether it came before or after the reply naming it. */
     fun finished(reopenId: String): ReopenDone? = doneState.value[reopenId]
-
-    /** A machine's reboot: the newest an event said, else the host list's. */
-    fun rebootOf(host: Host): HostReboot? = if (host.name in rebootsState.value) rebootsState.value[host.name] else host.reboot
 
     internal fun onEvent(event: String, payload: JsonObject) {
         when (event) {
