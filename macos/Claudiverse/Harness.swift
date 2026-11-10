@@ -1,5 +1,6 @@
 #if CLAUDIVERSE_HARNESS
 import AppKit
+import Carbon
 import ClaudiverseCore
 import Foundation
 import SwiftUI
@@ -35,6 +36,8 @@ enum Harness {
     static let reveal = Notification.Name("ClaudiverseHarnessReveal")
     /// Posted by "openimage": open transcripts open their newest image in the viewer.
     static let openImage = Notification.Name("ClaudiverseHarnessOpenImage")
+    /// Posted by "focussecret": the Pool screen's Z.ai key field takes the focus, as a click in it does.
+    static let focusSecret = Notification.Name("ClaudiverseHarnessFocusSecret")
     private static var model: AppModel?
     /// The "preview" window, reused by the next preview.
     private static var previewWindow: NSWindow?
@@ -212,6 +215,23 @@ enum Harness {
             let s = m.state
             return reply(["kept": true, "items": s.items.count, "rows": s.rows.count, "joined": s.joined, "joinError": s.joinError ?? "",
                           "socketConnected": s.socketConnected, "version": s.transcriptVersion])
+        case "responder":
+            // Each window's first responder, and whether it is editing a secure field (what holds Secure Keyboard Entry).
+            return reply(["secureInput": IsSecureEventInputEnabled(), "windows": NSApp.windows.filter(\.isVisible).map { w -> [String: Any] in
+                let r = w.firstResponder
+                let editing = (r as? NSTextView).flatMap { $0.delegate as? NSView }
+                return ["title": w.title, "key": w.isKeyWindow, "responder": r.map { String(describing: type(of: $0)) } ?? "nil",
+                        "secure": editing is NSSecureTextField, "inWindow": editing?.window === w]
+            }])
+        case "background":
+            // The app leaves the front, as a click in another app does.
+            NSApp.hide(nil)
+            return reply(["ok": true])
+        case "focussecret":
+            NSApp.activate()
+            model.openMainWindow?()
+            NotificationCenter.default.post(name: focusSecret, object: nil)
+            return reply(["ok": true])
         case "openimage":
             NotificationCenter.default.post(name: openImage, object: nil)
             return reply(["ok": true])
