@@ -232,6 +232,22 @@ enum Harness {
             model.openMainWindow?()
             NotificationCenter.default.post(name: focusSecret, object: nil)
             return reply(["ok": true])
+        case "trello":
+            // Trello write requests as the app keeps them, and its grants; preview: true draws the cards in a window.
+            let t = model.client.trello
+            if json["preview"] as? Bool == true {
+                let window = previewWindow ?? NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 300),
+                                                       styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+                window.isReleasedWhenClosed = false
+                window.title = "Trello preview"
+                window.contentView = NSHostingView(rootView: TrelloRequestsStack().padding(16).frame(width: 460, height: 300, alignment: .top)
+                    .environment(model).themed())
+                window.orderFront(nil)
+                previewWindow = window
+            }
+            return reply(["supported": t.supported.value.boolValue, "open": t.open.value.count,
+                          "requests": t.requests.value.map { "\($0.id) \($0.seatTitle) \($0.board) \($0.status)" },
+                          "grants": t.grants.value.map { "\($0.id) \($0.seatTitle) \($0.board)" }])
         case "openimage":
             NotificationCenter.default.post(name: openImage, object: nil)
             return reply(["ok": true])
