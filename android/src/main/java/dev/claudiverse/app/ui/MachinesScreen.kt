@@ -54,7 +54,8 @@ fun MachinesScreen(vm: MachinesViewModel) {
         ui.problem?.let { p -> item { ErrorBanner(p, onRetry = vm::reload) } }
         if (ui.loading && ui.hosts.isEmpty()) item { CircularProgressIndicator(Modifier.size(24.dp)) }
         items(ui.hosts, key = { it.name }) { h ->
-            MachineCard(h, vm.rebootOf(h), ui.machines[h.name] ?: MachineState(),
+            // From the list, read again on every "host_reboot": never an older event's copy.
+            MachineCard(h, h.reboot, ui.machines[h.name] ?: MachineState(),
                 onPrepare = { vm.prepare(h.name) }, onReopen = { brief -> confirming = h.name to brief })
         }
     }

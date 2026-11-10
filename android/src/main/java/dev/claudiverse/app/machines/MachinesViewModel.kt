@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.claudiverse.app.AppContainer
 import dev.claudiverse.core.Host
-import dev.claudiverse.core.HostReboot
 import dev.claudiverse.core.RebootSummary
 import dev.claudiverse.core.ReopenDone
 import kotlinx.coroutines.CancellationException
@@ -75,9 +74,6 @@ class MachinesViewModel(private val app: AppContainer) : ViewModel() {
             }
         }
     }
-
-    /** The machine's reboot: the newest a "host_reboot" event said, else the list's. */
-    fun rebootOf(host: Host): HostReboot? = app.reboots.rebootOf(host)
 
     fun prepare(host: String) {
         if (machine(host).preparing) return
