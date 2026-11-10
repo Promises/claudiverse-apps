@@ -248,6 +248,27 @@ enum Harness {
             return reply(["supported": t.supported.value.boolValue, "open": t.open.value.count,
                           "requests": t.requests.value.map { "\($0.id) \($0.seatTitle) \($0.board) \($0.status)" },
                           "grants": t.grants.value.map { "\($0.id) \($0.seatTitle) \($0.board)" }])
+        case "rebootpreview":
+            // A machine's safe reboot as drawn for a made-up machine that offers a reopen and reopened once before.
+            let brief = RebootBrief(kind: "rolling", takenAt: "2026-11-10T03:00:00Z", checkedAt: "2026-11-10T03:59:00Z", bootTime: nil,
+                                    seats: [RebootSeat(title: "lorem-admin", busy: true), RebootSeat(title: "ipsum-orchestrator", busy: false)],
+                                    runners: ["ipsum-w1"])
+            let last = ReopenReport(id: "r0", kind: "prepared", takenAt: nil, reopenedAt: "2026-11-09T22:00:00Z",
+                                    outcomes: [ReopenOutcome(name: "lorem-admin", busy: false, resumed: false, outcome: "started", code: nil, reason: nil),
+                                               ReopenOutcome(name: "runner ipsum-w1", busy: false, resumed: false, outcome: "skipped", code: "running", reason: "already running")],
+                                    seatCounts: ["started": KotlinInt(value: 1)], runnerCounts: ["skipped": KotlinInt(value: 1)])
+            let host = ClaudiverseCore.Host(name: "my-mac", online: true, seats: 2, roots: [], remoteRoots: false, version: "0.23.0", modes: [],
+                                            runtimes: [], mcp: [], lastSeenAt: nil, spawn: nil,
+                                            reboot: HostReboot(recoverable: brief, prepared: nil, lastReopen: last, reopening: nil))
+            let window = previewWindow ?? NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 260),
+                                                   styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.title = "Reboot preview"
+            window.contentView = NSHostingView(rootView: MachineReboot(host: host).padding(16).frame(width: 560, height: 260, alignment: .topLeading)
+                .environment(model).themed())
+            window.orderFront(nil)
+            previewWindow = window
+            return reply(["ok": true, "window": window.windowNumber])
         case "openimage":
             NotificationCenter.default.post(name: openImage, object: nil)
             return reply(["ok": true])
