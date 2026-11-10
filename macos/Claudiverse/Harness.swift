@@ -205,6 +205,13 @@ enum Harness {
                 sending.removeAll { $0 === session }
             }
             return reply(["ok": true, "note": now ? "sent now: it interrupts a running turn" : "sent: it runs when the current turn ends"])
+        case "kept":
+            // The main window's kept model for a seat, read without joining: what it would show if opened now.
+            guard let seat = seatArg() else { return reply(["error": "seat: an id"]) }
+            guard let m = model.keptSeat(seat) else { return reply(["kept": false]) }
+            let s = m.state
+            return reply(["kept": true, "items": s.items.count, "rows": s.rows.count, "joined": s.joined, "joinError": s.joinError ?? "",
+                          "socketConnected": s.socketConnected, "version": s.transcriptVersion])
         case "openimage":
             NotificationCenter.default.post(name: openImage, object: nil)
             return reply(["ok": true])

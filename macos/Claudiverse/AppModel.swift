@@ -188,6 +188,11 @@ final class AppModel {
      * of waiting for its history. A stopped one is kept only among the
      * [recentStoppedLimit] newest; at most [keptSeatLimit] are kept in all.
      */
+    #if CLAUDIVERSE_HARNESS
+    /// The main window's kept model for [seatId], as it is: for the harness to look without joining.
+    func keptSeat(_ seatId: Int64) -> SeatModel? { recentSeats.first { $0.session.seatId == seatId } }
+    #endif
+
     func recentSeat(_ seatId: Int64) -> SeatModel {
         let m: SeatModel
         if let i = recentSeats.firstIndex(where: { $0.session.seatId == seatId }) {

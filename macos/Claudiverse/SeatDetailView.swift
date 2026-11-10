@@ -85,6 +85,11 @@ struct SeatDetailView: View {
         .onAppear {
             let m = keepLoaded ? app.recentSeat(seatId) : SeatModel(client: app.client, seatId: seatId)
             model = m
+            // A kept seat is shown again without rejoining; one that has nothing to show asks for its history.
+            if keepLoaded && m.state.joined && m.state.items.isEmpty {
+                log.notice("seat \(seatId, privacy: .public): shown again with no history; reloading")
+                m.session.reload()
+            }
             m.session.setWatched(on: phase == .active)
         }
         // Watched only while its window is in front in the active app: that is what answers the seat's
