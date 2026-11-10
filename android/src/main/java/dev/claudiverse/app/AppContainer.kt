@@ -16,6 +16,7 @@ import dev.claudiverse.core.Api
 import dev.claudiverse.core.CoreLog
 import dev.claudiverse.core.HumanRequests
 import dev.claudiverse.core.TrelloRequests
+import dev.claudiverse.core.Reboots
 import dev.claudiverse.core.PoolEvents
 import dev.claudiverse.core.Restarts
 import dev.claudiverse.core.Profiles
@@ -56,6 +57,14 @@ class AppContainer private constructor(context: Context) {
     fun watchTrello() = synchronized(this) { if (trelloWatchers++ == 0) trello.start() }
 
     fun unwatchTrello() = synchronized(this) { if (--trelloWatchers == 0) trello.stop() }
+
+    /** Machines' safe reboots and reopens (operator:events), while the Machines screen shows them. */
+    val reboots = Reboots(socket, scope)
+    private var rebootWatchers = 0
+
+    fun watchReboots() = synchronized(this) { if (rebootWatchers++ == 0) reboots.start() }
+
+    fun unwatchReboots() = synchronized(this) { if (--rebootWatchers == 0) reboots.stop() }
     /** Turns the app's VPN on away from the server's network and off on it. */
     val autoVpn = AutoVpn(context, settings, vpn, scope)
     /** Updates this app from the build the server holds. */

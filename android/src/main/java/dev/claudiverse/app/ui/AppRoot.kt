@@ -32,6 +32,8 @@ import dev.claudiverse.app.spawn.AutoRestartViewModel
 import dev.claudiverse.app.spawn.RestartIdleViewModel
 import dev.claudiverse.core.SpawnNotice
 import dev.claudiverse.app.trello.TrelloViewModel
+import dev.claudiverse.app.machines.MachinesViewModel
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.DisposableEffect
 import kotlinx.coroutines.launch
@@ -192,6 +194,9 @@ fun AppRoot(
                     if (route == "restart-idle") IconButton(onClick = { nav.navigate("auto-restart") }) {
                         Icon(Icons.Filled.Schedule, contentDescription = "Auto-restart")
                     }
+                    if (route == "restart-idle") IconButton(onClick = { nav.navigate("machines") }) {
+                        Icon(Icons.Filled.Computer, contentDescription = "Machines")
+                    }
                     if (route == "seats") IconButton(onClick = { nav.navigate("profiles") }) {
                         Icon(Icons.Filled.Badge, contentDescription = "Profiles")
                     }
@@ -243,6 +248,7 @@ fun AppRoot(
             }
             composable("restart-idle") { RestartIdleScreen(viewModel { RestartIdleViewModel(app) }, onAutoRestart = { nav.navigate("auto-restart") }) }
             composable("auto-restart") { AutoRestartScreen(viewModel { AutoRestartViewModel(app) }) }
+            composable("machines") { MachinesScreen(viewModel { MachinesViewModel(app) }) }
             composable("new-seat") {
                 NewSeatScreen(viewModel { NewSeatViewModel(app) }, onClose = { nav.popBackStack() })
             }
@@ -382,6 +388,7 @@ private fun titleFor(route: String?, args: android.os.Bundle?): String = when {
     route == "restart-idle" -> "Restart idle seats"
     route == "auto-restart" -> "Auto-restart"
     route == "trello" -> "Trello write access"
+    route == "machines" -> "Machines"
     route.startsWith("profile/") -> if (args?.getLong("id") == NEW_PROFILE) "New profile" else "Profile"
     else -> TABS.firstOrNull { it.route == route }?.label ?: "Claudiverse"
 }
