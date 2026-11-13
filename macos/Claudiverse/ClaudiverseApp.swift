@@ -6,6 +6,8 @@ struct ClaudiverseApp: App {
     @State private var model: AppModel
 
     init() {
+        // First, before anything is started: opened from a seat's shell, the app must not hand that seat's identity on.
+        CleanEnvironment.scrubThisProcess()
         // Before the model reads them: the preferences an install under the old bundle id kept.
         Preferences.adoptOldBundleId()
         _model = State(initialValue: AppModel())

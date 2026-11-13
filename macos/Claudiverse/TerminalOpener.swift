@@ -60,12 +60,15 @@ enum TerminalOpener {
         try await Task.detached { try run(cmd) }.value
     }
 
+    /// What is typed into the new window: the seat variables unset first, since an iTerm already running may hold them.
+    static func typed(_ cmd: String) -> String { CleanEnvironment.unsetLine + "; " + cmd }
+
     private static func run(_ cmd: String) throws {
         let script = """
         tell application "iTerm"
             activate
             set w to (create window with default profile)
-            tell current session of w to write text "\(appleScriptEscaped(cmd))"
+            tell current session of w to write text "\(appleScriptEscaped(typed(cmd)))"
         end tell
         """
         var error: NSDictionary?
@@ -76,9 +79,7 @@ enum TerminalOpener {
     private static func hasLocalSession(_ title: String) -> Bool {
         let tmux = ["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/usr/bin/tmux"].first { FileManager.default.isExecutableFile(atPath: $0) }
         guard let tmux else { return false }
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: tmux)
-        p.arguments = ["has-session", "-t", "=" + title]
+        let p = CleanEnvironment.process(tmux, ["has-session", "-t", "=" + title])
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
         do { try p.run() } catch { return false }
