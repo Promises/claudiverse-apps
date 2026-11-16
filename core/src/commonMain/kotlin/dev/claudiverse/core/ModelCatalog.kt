@@ -20,16 +20,41 @@ data class ModelCatalog(
     /** Read from the server rather than built in. */
     val fromServer: Boolean,
 ) {
-    /** The models a seat can be started with on a machine running Claude Code [version]: [SPAWN_IDS] it knows. */
-    fun spawnModels(version: String?): List<ModelChoice> =
-        SPAWN_IDS.mapNotNull { id -> models.firstOrNull { it.id == id } }.filter { it.knownBy(version) }
+    /**
+     * The models a seat can be started with on a machine running Claude Code
+     * [version]: every current one the list has (Z.ai's GLM too), by exact id
+     * so a seat shows as the model it runs, and only those that Claude Code
+     * knows (a bare "haiku" is Haiku 4.5 before 2.1.293 and 5.5 after).
+     */
+    fun spawnModels(version: String?): List<ModelChoice> = models.filter { it.knownBy(version) }
+
+    /**
+     * What New seat offers, one group per family in the list's order (Opus,
+     * Sonnet, …, then "GLM (Z.ai)"), each with its [ModelGroup.older] models
+     * kept apart to fold away; only models the machine's Claude Code knows.
+     * The built-in list has no families: one "Claude" group.
+     */
+    fun spawnGroups(version: String?): List<ModelGroup> {
+        val current = models.filter { it.knownBy(version) }.groupBy { it.family }
+        val older = olderModels.filter { it.knownBy(version) }.groupBy { it.family }
+        return (current.keys + older.keys).map { f ->
+            ModelGroup(f ?: CLAUDE, groupLabel(f), current[f].orEmpty(), older[f].orEmpty())
+        }
+    }
 
     companion object {
-        /**
-         * Exact ids, so a seat shows as the model it runs: a bare "haiku" is
-         * Haiku 4.5 on a machine before Claude Code 2.1.293 and 5.5 after.
-         */
-        val SPAWN_IDS = listOf("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-haiku-4-5")
+        /** Z.ai's GLM models, served through the server's proxy. */
+        const val GLM = "glm"
+
+        /** The group of a model without a family: the built-in list, all Claude. */
+        const val CLAUDE = "claude"
+
+        /** "Opus", "Sonnet", "GLM (Z.ai)"; a family this app does not know yet, by its name. */
+        fun groupLabel(family: String?): String = when (family) {
+            null -> "Claude"
+            GLM -> "GLM (Z.ai)"
+            else -> family.replaceFirstChar { it.uppercase() }
+        }
 
         val BUILT_IN = ModelCatalog(SessionChoices.models, SessionChoices.olderModels, SessionChoices.aliases, fromServer = false)
 
@@ -41,7 +66,7 @@ data class ModelCatalog(
         fun from(o: JsonObject): ModelCatalog {
             val all = o.array("models").objects().mapNotNull { m ->
                 val id = m.str("id") ?: return@mapNotNull null
-                ModelChoice(m.str("label") ?: id, id, oneM = m.flag("accepts_1m_suffix"), since = m.str("since")) to m.flag("older")
+                ModelChoice(m.str("label") ?: id, id, oneM = m.flag("accepts_1m_suffix"), since = m.str("since"), family = m.str("family")) to m.flag("older")
             }
             val aliases = o.array("aliases").objects().mapNotNull { a -> a.str("id")?.let { Choice(it, a.str("label") ?: it) } }
             return ModelCatalog(
@@ -53,6 +78,12 @@ data class ModelCatalog(
         }
     }
 }
+
+/** One family's models as New seat offers them: [models] first, [older] folded away. [id] is the family. */
+data class ModelGroup(val id: String, val label: String, val models: List<ModelChoice>, val older: List<ModelChoice>)
+
+/** The id a spawn sends for [choice]: with `[1m]` when [oneM] is asked and the model takes it ([ModelChoice.spawnOneM]); null for the machine's default. */
+fun spawnModelId(choice: ModelChoice?, oneM: Boolean): String? = choice?.let { if (oneM && it.spawnOneM) "${it.id}[1m]" else it.id }
 
 /** The model list, built in until [refresh] reads the server's; a server without one, or one out of reach, keeps what there is. */
 class ModelCatalogs(private val api: Api, private val scope: CoroutineScope) {

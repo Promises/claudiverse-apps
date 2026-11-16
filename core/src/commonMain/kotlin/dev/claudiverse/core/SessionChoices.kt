@@ -12,7 +12,21 @@ package dev.claudiverse.core
  * [since]: the first Claude Code version that knows the id, when the fleet
  * may still run older ones.
  */
-data class ModelChoice(val label: String, val id: String, val oneM: Boolean, val since: String? = null) {
+data class ModelChoice(
+    val label: String,
+    val id: String,
+    val oneM: Boolean,
+    val since: String? = null,
+    /** The server's family: opus, sonnet, haiku, fable, mythos, or glm for Z.ai's GLM; null in the built-in list. */
+    val family: String? = null,
+) {
+    /**
+     * Starting a seat may ask for its 1M window with `[1m]`: a model that takes
+     * the suffix, and Z.ai's GLM, whose `[1m]` the server's proxy strips before
+     * Z.ai so Claude Code allows the 1M window.
+     */
+    val spawnOneM: Boolean get() = oneM || family == ModelCatalog.GLM
+
     /** Whether Claude Code [version] knows this model. An unknown version counts as too old for a model with a [since]. */
     fun knownBy(version: String?): Boolean {
         if (since == null) return true

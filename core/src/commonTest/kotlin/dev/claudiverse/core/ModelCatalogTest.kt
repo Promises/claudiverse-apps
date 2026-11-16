@@ -38,7 +38,7 @@ class ModelCatalogTest {
         assertFalse(c.models.first().oneM, "a native 1M model offers no [1m]")
         assertEquals("2.1.293", c.models[1].since)
         assertEquals(listOf("default", "opusplan"), c.aliases.map { it.id })
-        assertEquals(listOf("claude-opus-5-5", "claude-haiku-4-5"), c.spawnModels("2.1.291").map { it.id })
+        assertEquals(listOf("claude-opus-5-5", "claude-haiku-4-5", "claude-ipsum-9"), c.spawnModels("2.1.291").map { it.id })
     }
 
     @Test
