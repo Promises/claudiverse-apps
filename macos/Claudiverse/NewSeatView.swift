@@ -26,8 +26,9 @@ final class NewSeatModel {
 /**
  * Start a seat on a machine: pick the machine, a folder (a recent one, or
  * browse inside its allowed folders), the title (the folder's name until
- * edited), the permission mode (or, for a pi seat where the machine runs
- * them, its model and thinking level) and an optional first prompt. Once the server
+ * edited), the permission mode and model ([SpawnModelPicker]) (or, for a pi
+ * seat where the machine runs them, its model and thinking level) and an
+ * optional first prompt. Once the server
  * accepts, the sheet closes and the banner follows the outcome.
  */
 struct NewSeatView: View {
@@ -47,6 +48,8 @@ struct NewSeatView: View {
         .onAppear {
             let m = NewSeatModel(client: app.client)
             model = m
+            // The model list as the server has it now (read otherwise only at sign-in).
+            app.client.models.refresh()
             onSession?(m.session)
         }
         .onDisappear { model?.close() }
@@ -124,6 +127,11 @@ struct NewSeatView: View {
                         if !isPi {
                             Picker("Permission mode", selection: Binding(get: { s.mode }, set: { session.setMode(mode: $0) })) {
                                 ForEach(SessionChoices.shared.modes, id: \.id) { Text($0.label).tag($0.id) }
+                            }
+                            if let host = s.hosts.first(where: { $0.name == s.host }) {
+                                SpawnModelPicker(host: host, mode: s.mode, sent: s.model,
+                                                 groups: app.modelCatalog.spawnGroups(version: host.spawn?.version),
+                                                 set: { session.setModel(model: $0) })
                             }
                         }
                         TextField("First prompt (optional)", text: Binding(get: { s.prompt }, set: { session.setPrompt(prompt: $0) }), axis: .vertical)

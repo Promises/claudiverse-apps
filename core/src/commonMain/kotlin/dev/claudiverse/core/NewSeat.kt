@@ -104,7 +104,7 @@ data class NewSeatState(
     /** True once the user has typed a title: it then no longer follows the folder. */
     val titleEdited: Boolean = false,
     val mode: String = "auto",
-    /** A model id to start with ([SessionChoices.spawnModels]); null leaves the machine's default. */
+    /** A model id to start with, as sent ([ModelCatalog.spawnModelId]: [1m] included); null leaves the machine's default. */
     val model: String? = null,
     /** Use the server's account pool; null leaves the machine's default. */
     val pooled: Boolean? = null,
@@ -167,7 +167,8 @@ class NewSeatSession internal constructor(private val client: ClaudiverseClient,
 
     fun pickHost(name: String) {
         val host = state.value.hosts.firstOrNull { it.name == name }?.takeIf { it.online } ?: return
-        state.update { it.copy(host = name, roots = host.roots, recents = emptyList(), recentIndex = 0, listing = null, listingError = null, spawnError = null) }
+        // Another machine may run a Claude Code that does not know the model picked: back to its own default.
+        state.update { it.copy(host = name, roots = host.roots, recents = emptyList(), recentIndex = 0, listing = null, listingError = null, spawnError = null, model = null) }
         load?.cancel()
         load = scope.launch {
             val recents = try {
@@ -222,6 +223,8 @@ class NewSeatSession internal constructor(private val client: ClaudiverseClient,
     fun setMode(mode: String) = state.update { it.copy(mode = mode) }
     /** "pi" or null (Claude Code). */
     fun setRuntime(runtime: String?) = state.update { it.copy(runtime = runtime) }
+    /** The model id a Claude seat starts with, as sent ([ModelCatalog.spawnModelId]); null for the machine's default. */
+    fun setModel(model: String?) = state.update { it.copy(model = model) }
     fun setPiModel(model: String?) = state.update { it.copy(piModel = model) }
     fun setEffort(effort: String?) = state.update { it.copy(effort = effort) }
     fun setPrompt(prompt: String) = state.update { it.copy(prompt = prompt) }
