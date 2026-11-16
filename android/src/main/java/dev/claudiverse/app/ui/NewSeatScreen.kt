@@ -48,6 +48,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.AssistChip
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -325,13 +329,29 @@ private fun ModelAndPool(host: Host, ui: NewSeatState, vm: NewSeatViewModel, cat
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Model", style = MaterialTheme.typography.labelMedium, color = muted)
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val chosen = if (offersModel) ui.model else null
-            // Exact ids, only those the machine's Claude Code knows: an alias resolves differently by version.
-            val models = catalog.spawnModels(spawn?.version).map { it.id to it.label }
-            (listOf<Pair<String?, String>>(null to "Machine's default") + models).forEach { (id, label) ->
-                FilterChip(id == chosen, { vm.setModel(id) }, enabled = offersModel, label = { Text(label) },
-                    leadingIcon = if (id == chosen) ({ Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }) else null)
+        val chosen = if (offersModel) ui.model else null
+        @Composable
+        fun ModelChip(id: String?, label: String) = FilterChip(id == chosen, { vm.setModel(id) }, enabled = offersModel, label = { Text(label) },
+            leadingIcon = if (id == chosen) ({ Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }) else null)
+        ModelChip(null, "Machine's default")
+        // Exact ids, by family as the server lists them (Z.ai's GLM its own), only those the machine's Claude Code knows.
+        val groups = catalog.spawnGroups(spawn?.version)
+        groups.forEach { g ->
+            var showOlder by rememberSaveable(g.id) { mutableStateOf(g.older.any { it.id == chosen }) }
+            Text(g.label, style = MaterialTheme.typography.labelSmall, color = muted)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                g.models.forEach { m -> ModelChip(m.id, m.label) }
+                if (showOlder) g.older.forEach { m -> ModelChip(m.id, m.label) }
+                if (g.older.isNotEmpty() && !showOlder) AssistChip({ showOlder = true }, label = { Text("Older…") })
+            }
+        }
+        // Its 1M window, where the id takes "[1m]" (a 200K model with the 1M beta, or GLM through the proxy).
+        val choice = groups.flatMap { it.models + it.older }.firstOrNull { it.id == chosen }
+        if (choice?.spawnOneM == true) {
+            val oneM by vm.oneM.collectAsStateWithLifecycle()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("1M context window", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                Switch(checked = oneM, onCheckedChange = vm::setOneM)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {

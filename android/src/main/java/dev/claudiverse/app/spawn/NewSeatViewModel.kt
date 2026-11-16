@@ -1,6 +1,7 @@
 package dev.claudiverse.app.spawn
 
 import dev.claudiverse.core.ModelCatalog
+import dev.claudiverse.core.spawnModelId
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.claudiverse.app.AppContainer
@@ -32,6 +33,10 @@ class NewSeatViewModel(private val app: AppContainer) : ViewModel() {
 
     private val state = MutableStateFlow(NewSeatState())
     val ui: StateFlow<NewSeatState> = state.asStateFlow()
+
+    /** The chosen model's 1M window, where it is a suffix ([ModelChoice.spawnOneM]); off again with each new model. */
+    private val oneMState = MutableStateFlow(false)
+    val oneM: StateFlow<Boolean> = oneMState.asStateFlow()
     private var load: Job? = null
     private val hostEvents = HostEvents(app.socket, viewModelScope)
 
@@ -63,6 +68,7 @@ class NewSeatViewModel(private val app: AppContainer) : ViewModel() {
         val picked = state.value.hosts.first { it.name == name }
         // The pool is on by default where the machine lets the seat choose, as the web panel's Start a seat.
         val pooled = picked.spawn?.takeIf { it.offersPool && !it.poolOnly }?.let { true }
+        oneMState.value = false
         state.update {
             it.copy(host = name, roots = picked.roots, recents = emptyList(), recentIndex = 0, listing = null, listingError = null,
                 spawnError = null, model = null, pooled = pooled)
@@ -107,8 +113,15 @@ class NewSeatViewModel(private val app: AppContainer) : ViewModel() {
 
     fun setTitle(title: String) = state.update { it.copy(title = title, titleEdited = true, spawnError = null) }
     fun setMode(mode: String) = state.update { it.copy(mode = mode) }
-    /** A model alias, or null for the machine's default. */
-    fun setModel(model: String?) = state.update { it.copy(model = model) }
+    /** A model's exact id, or null for the machine's default. */
+    fun setModel(model: String?) {
+        oneMState.value = false
+        state.update { it.copy(model = model) }
+    }
+
+    fun setOneM(on: Boolean) {
+        oneMState.value = on
+    }
     fun setPooled(pooled: Boolean) = state.update { it.copy(pooled = pooled) }
     /** "pi" for a pi seat where the machine offers one; null for Claude Code. */
     fun setRuntime(runtime: String?) = state.update { it.copy(runtime = runtime) }
@@ -124,7 +137,10 @@ class NewSeatViewModel(private val app: AppContainer) : ViewModel() {
         state.update { it.copy(spawning = true, spawnError = null) }
         viewModelScope.launch {
             // What the web sends: a pi seat runs auto with its model and thinking, no pool.
-            val req = spawnRequest(s.hosts.firstOrNull { it.name == host }, s.mode, s.model, s.pooled, s.runtime, s.piModel, s.effort)
+            // The chosen model with [1m] when its 1M window is asked for and the model takes the suffix.
+            val choice = models.value.let { c -> (c.models + c.olderModels).firstOrNull { it.id == s.model } }
+            val model = if (choice != null) spawnModelId(choice, oneMState.value) else s.model
+            val req = spawnRequest(s.hosts.firstOrNull { it.name == host }, s.mode, model, s.pooled, s.runtime, s.piModel, s.effort)
             runCatching { app.spawns.spawn(host, path, s.title.trim(), req, s.prompt.trim().ifEmpty { null }) }
                 .onSuccess {
                     state.update { it.copy(spawning = false) }
