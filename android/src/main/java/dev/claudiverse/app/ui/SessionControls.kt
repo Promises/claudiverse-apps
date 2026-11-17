@@ -273,6 +273,19 @@ private fun PagingSection(grant: Boolean?, until: String?, canNotify: Boolean, o
         FilterChip(grant == null, { onNotify(null, null) }, label = { Text("Default") })
     }
     Section("For", "How long On or Off holds before it goes back to the default") {
-        PAGING_FOR.forEach { (m, label) -> FilterChip(minutes == m, { minutes = m }, label = { Text(label) }) }
+        PAGING_FOR.forEach { (m, label) ->
+            FilterChip(minutes == m, {
+                minutes = m
+                // An On or Off in force takes the new length now; it was kept only for the next tap before.
+                pagingRegrant(grant, m)?.let { (allow, length) -> onNotify(allow, length) }
+            }, label = { Text(label) })
+        }
     }
 }
+
+/**
+ * What picking the length [minutes] (null: until changed) sends: the switch in
+ * force with that length, or nothing while it is Default (the length then
+ * waits for On or Off).
+ */
+internal fun pagingRegrant(grant: Boolean?, minutes: Int?): Pair<Boolean, Int?>? = grant?.let { it to minutes }
