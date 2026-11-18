@@ -67,23 +67,27 @@ data class ZaiWindow(
 fun zaiWindowLabel(w: ZaiWindow): String = when (w.window) {
     "5h" -> "5 hours"
     "week" -> "Week"
+    "month" -> "Month"
     else -> w.window
 }
 
 /**
  * A window's line under its bar: "60078 of 60000 credits · spent until
  * tomorrow 09:08" when used up, else "0 of 12000 credits" and when it resets
- * if the server says.
+ * if the server says. An OpenCode Go window (a percent, no credits) is just
+ * "resets tomorrow 01:22".
  */
 @OptIn(ExperimentalTime::class)
 fun zaiWindowLine(w: ZaiWindow, now: Long = Clock.System.now().toEpochMilliseconds(), zone: TimeZone = TimeZone.currentSystemDefault()): String {
-    val credits = "${w.used ?: "?"} of ${w.limit ?: "?"} credits"
+    // An OpenCode Go window has a percent only: no credits to show.
+    val credits = if (w.used == null && w.limit == null) null else "${w.used ?: "?"} of ${w.limit ?: "?"} credits"
     val reset = parseServerTime(w.resetsAt)?.let { resetTime(it, now, zone) }
-    return when {
-        w.spent -> "$credits · spent until ${reset ?: "it resets"}"
-        reset != null -> "$credits · resets $reset"
-        else -> credits
+    val tail = when {
+        w.spent -> "spent until ${reset ?: "it resets"}"
+        reset != null -> "resets $reset"
+        else -> null
     }
+    return listOfNotNull(credits, tail).joinToString(" · ")
 }
 
 /** A coming time, briefly: "09:08" today, "tomorrow 09:08", "Mon 09:08" within the week, else "2 Nov 09:08". */

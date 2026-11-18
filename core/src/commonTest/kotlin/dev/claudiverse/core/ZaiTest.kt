@@ -51,6 +51,12 @@ class ZaiTest {
         assertEquals("Wed 08:08", resetTime(parseServerTime("2026-11-04T08:08:00Z")!!, now, utc))
         assertEquals("12 Nov 08:08", resetTime(parseServerTime("2026-11-12T08:08:00Z")!!, now, utc))
         assertEquals("spent until it resets", zaiWindowLine(week.copy(resetsAt = null), now, utc).substringAfter(" · "))
+
+        // OpenCode Go: a percent and a reset, no credits (server 65e25f4).
+        val go = ZaiWindow(window = "month", used = null, limit = null, remaining = null, percent = 32, resetsAt = "2026-11-02T08:08:37Z")
+        assertEquals("Month", zaiWindowLabel(go))
+        assertEquals("resets tomorrow 08:08", zaiWindowLine(go, now, utc))
+        assertEquals("spent until tomorrow 08:08", zaiWindowLine(go.copy(percent = 100), now, utc))
     }
 
     @Test
