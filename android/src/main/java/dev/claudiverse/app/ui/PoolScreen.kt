@@ -144,16 +144,24 @@ fun PoolScreen(
                     }
                 }
                 item { AssignmentSummary(view.pool) }
-                // Z.ai (GLM) Coding Plan: pi seats' quota, beside the Anthropic accounts.
+                // Other plans' quota beside the Anthropic accounts, under each plan's own name: the
+                // Z.ai Coding Plan (GLM; where a key is added) first, then OpenCode Go and any other.
                 if (view.zai != null && (view.zai.isNotEmpty() || zaiActions.add != null)) {
-                    item {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Z.ai Coding Plan", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                            if (zaiActions.add != null) TextButton(onClick = { notice = null; addingZai = true }) { Text("Add key…") }
+                    val zaiName = ZaiKey.ZAI_PLAN
+                    val plans = view.zai.groupBy { it.providerName }
+                    (listOf(zaiName) + (plans.keys - zaiName)).forEach { plan ->
+                        val keys = plans[plan].orEmpty()
+                        val adds = plan == zaiName && zaiActions.add != null
+                        if (keys.isEmpty() && !adds) return@forEach
+                        item(key = "plan:$plan") {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(plan, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                                if (adds) TextButton(onClick = { notice = null; addingZai = true }) { Text("Add key…") }
+                            }
                         }
-                    }
-                    items(view.zai, key = { "zai:${it.id}" }) { k ->
-                        ZaiCard(k, zaiActions) { p -> problem = p; vm.refresh() }
+                        items(keys, key = { "zai:${it.id}" }) { k ->
+                            ZaiCard(k, zaiActions) { p -> problem = p; vm.refresh() }
+                        }
                     }
                 }
                 view.incidents?.takeIf { it.latest.isNotEmpty() }?.let { inc ->
