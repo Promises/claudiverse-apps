@@ -40,6 +40,16 @@ class ZaiTest {
     }
 
     @Test
+    fun eachKeySaysWhosePlanItIs() = runTest {
+        val keys = api("""{"keys":[
+            {"id":1,"label":"coding plan","provider":"zai","status":"ok","windows":[]},
+            {"id":3,"label":"opencode-go","provider":"opencode-go","status":"ok","windows":[]},
+            {"id":4,"label":"older server","status":"ok","windows":[]},
+            {"id":5,"label":"new","provider":"someplan","status":"ok","windows":[]}]}""").zaiKeys()!!
+        assertEquals(listOf("Z.ai Coding Plan", "OpenCode Go", "Z.ai Coding Plan", "someplan"), keys.map { it.providerName })
+    }
+
+    @Test
     fun aSpentWindowSaysUntilWhen() {
         val utc = TimeZone.UTC
         val now = parseServerTime("2026-11-01T16:00:00Z")!!

@@ -23,8 +23,17 @@ data class ZaiKey(
     /** The server's last check, ISO. */
     val checkedAt: String?,
     val windows: List<ZaiWindow>,
+    /** Whose plan it is: "zai" (Z.ai Coding Plan) or "opencode-go"; null from a server that does not say (Z.ai). */
+    val provider: String? = null,
 ) {
     val ok: Boolean get() = status == "ok"
+
+    /** The plan's name, for a heading: "Z.ai Coding Plan", "OpenCode Go", or the server's name for one this app does not know. */
+    val providerName: String get() = when (provider) {
+        null, ZAI -> ZAI_PLAN
+        OPENCODE_GO -> "OpenCode Go"
+        else -> provider
+    }
 
     companion object {
         fun from(o: JsonObject) = ZaiKey(
@@ -35,7 +44,13 @@ data class ZaiKey(
             lastError = o.str("last_error"),
             checkedAt = o.str("checked_at"),
             windows = o.array("windows").objects().map(ZaiWindow::from),
+            provider = o.str("provider"),
         )
+
+        const val ZAI = "zai"
+        /** The Z.ai plan's name: where a key is added. */
+        const val ZAI_PLAN = "Z.ai Coding Plan"
+        const val OPENCODE_GO = "opencode-go"
     }
 }
 
