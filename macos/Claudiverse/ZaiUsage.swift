@@ -2,11 +2,13 @@ import ClaudiverseCore
 import SwiftUI
 
 /**
- * Z.ai (GLM) Coding Plan keys on the Pool screen: each key's plan, each quota
- * window (credits used of the limit, and when it resets, or "spent until …"),
- * and why the last check failed if it did. The server reads them every
- * 5 minutes; the key itself never reaches the app. Adding, checking and
- * removing a key are for an app or super sign-in.
+ * Other plans' quota on the Pool screen, under each plan's own name: the Z.ai
+ * (GLM) Coding Plan first, where a key is added, then OpenCode Go and any
+ * other the server reads. Each key: its level, each quota window (credits
+ * used of the limit where the plan gives them, and when it resets, or
+ * "spent until …"), and why the last check failed if it did. The server reads
+ * them every 5 minutes; the key itself never reaches the app. Adding, checking
+ * and removing a key are for an app or super sign-in.
  */
 struct ZaiSection: View {
     @Environment(AppModel.self) private var model
@@ -14,17 +16,31 @@ struct ZaiSection: View {
     var body: some View {
         let keys = model.pool.zai
         VStack(alignment: .leading, spacing: 10) {
-            Text("Z.ai Coding Plan").font(.headline)
             if let keys {
-                if keys.isEmpty { Text("No Z.ai key yet.").foregroundStyle(.secondary) }
-                ForEach(keys, id: \.id) { key in ZaiCard(key: key) }
-                if model.canChangeSettings { ZaiAddForm() }
+                ForEach(ZaiSection.plans(keys), id: \.name) { plan in
+                    Text(plan.name).font(.headline)
+                    ForEach(plan.keys, id: \.id) { key in ZaiCard(key: key) }
+                    if plan.name == ZaiKey.companion.ZAI_PLAN {
+                        if plan.keys.isEmpty { Text("No Z.ai key yet.").foregroundStyle(.secondary) }
+                        if model.canChangeSettings { ZaiAddForm() }
+                    }
+                }
             } else if let error = model.pool.zaiError {
+                Text("Z.ai Coding Plan").font(.headline)
                 Text(error).foregroundStyle(Theme.bad)
             } else {
+                Text("Z.ai Coding Plan").font(.headline)
                 Text("This server shows no Z.ai keys yet.").foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// The keys by plan: the Z.ai Coding Plan first, even with no key (a key is added there), then the others as served.
+    static func plans(_ keys: [ZaiKey]) -> [(name: String, keys: [ZaiKey])] {
+        let zai = ZaiKey.companion.ZAI_PLAN
+        var names = [zai]
+        for k in keys where !names.contains(k.providerName) { names.append(k.providerName) }
+        return names.map { name in (name, keys.filter { $0.providerName == name }) }
     }
 }
 
@@ -71,7 +87,7 @@ struct ZaiCard: View {
         }
         .padding(14)
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
-        .confirmationDialog("Remove the Z.ai key “\(key.label)”?", isPresented: $confirmingRemove) {
+        .confirmationDialog("Remove the \(key.providerName) key “\(key.label)”?", isPresented: $confirmingRemove) {
             Button("Remove Key", role: .destructive) { act { try await model.client.api.deleteZaiKey(id: key.id) } }
         } message: {
             Text("Its seats keep running; only the quota display goes.")
