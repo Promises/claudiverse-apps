@@ -306,7 +306,9 @@ struct BoardTabs: Codable, Equatable {
 /**
  * The fleet as the board sees it: live from GET /api/fleets where it has
  * data, the seat list otherwise. Members are the fleet's declared ones (its
- * profiles) and any other seat in the fleet that is not a runner's.
+ * profiles) and any other seat in the fleet that is not a runner's. A board
+ * may also show a seat of another fleet ([otherFleets], a guest): its tile is
+ * a member tile by title, found among all seats.
  */
 struct FleetRoster {
     let members: [Seat]
@@ -318,6 +320,8 @@ struct FleetRoster {
     let live: [String: FleetRunner]
     /// Every slot, live ones first, then ones known only from runner titles.
     let slots: [String]
+    /// Running seats of other fleets (and of none) a board may add as guests, by fleet; no runner seats.
+    let otherFleets: [(fleet: String, seats: [Seat])]
     private let seatsByTitle: [String: Seat]
     private let seatsById: [Int64: Seat]
 
@@ -336,7 +340,15 @@ struct FleetRoster {
         let fromTitles = Set(seats.filter { $0.fleet == fleet || $0.title.hasPrefix(fleet + "-w") }.compactMap { Self.slot(of: $0.title) })
         slots = runners.map(\.slot).sorted() + fromTitles.subtracting(live.keys).sorted()
         memberTitles = Set(declared.keys).union(members.map(\.title)).sorted()
+        let mine = Set(memberTitles)
+        let guests = latest.values.filter { s in s.status == "running" && !s.isRunner && Self.slot(of: s.title) == nil && !mine.contains(s.title) }
+        otherFleets = Dictionary(grouping: guests) { $0.fleet ?? Self.noFleet }
+            .map { (fleet: $0.key, seats: $0.value.sorted { $0.title < $1.title }) }
+            .sorted { ($0.fleet == Self.noFleet ? 1 : 0, $0.fleet) < ($1.fleet == Self.noFleet ? 1 : 0, $1.fleet) }
     }
+
+    /// The group of seats in no fleet, last in [otherFleets].
+    static let noFleet = "No fleet"
 
     /// "ipsum-w7-t30450" → "ipsum-w7": cv-runner names a runner's seat by its slot and task.
     static func slot(of title: String) -> String? {
@@ -344,7 +356,16 @@ struct FleetRoster {
         return String(match.1)
     }
 
-    func member(_ title: String) -> Seat? { members.first { $0.title == title } }
+    /// A member tile's seat: one of the fleet's, or a guest from another fleet (any seat by title that is not a runner's).
+    func member(_ title: String) -> Seat? {
+        members.first { $0.title == title } ?? seatsByTitle[title].flatMap { s in !s.isRunner && Self.slot(of: s.title) == nil ? s : nil }
+    }
+
+    /// "fleet ps2" under a guest's tile; nil for the fleet's own.
+    func guestCaption(_ seat: Seat) -> String? {
+        guard !memberTitles.contains(seat.title) else { return nil }
+        return seat.fleet.map { "fleet \($0)" } ?? "no fleet"
+    }
 
     func seat(id: Int64) -> Seat? { seatsById[id] }
 
@@ -539,7 +560,7 @@ struct FleetBoardView: View {
                     MemberTile(member: declared, onRemove: remove)
                 }
             } else if let seat = roster.member(title) {
-                SeatTile(seat: seat, caption: nil, onRemove: remove).id(seat.id)
+                SeatTile(seat: seat, caption: roster.guestCaption(seat), onRemove: remove).id(seat.id)
             } else {
                 EmptyTile(title: title, detail: "Not in the seat list now (stopped? Turn Running only off to see stopped seats).", onRemove: remove)
             }
@@ -590,6 +611,19 @@ struct FleetBoardView: View {
                     ForEach(roster.slots, id: \.self) { slot in
                         Button("\(slot) (\(roster.live[slot]?.status ?? "no heartbeat"))") { layout.append(.runner(slot), height: BoardLayout.small) }
                             .disabled(layout.contains(.runner(slot)))
+                    }
+                }
+                if !roster.otherFleets.isEmpty {
+                    // A seat of another fleet, shown here too (a fleet's watcher beside it, say).
+                    Section("Other fleets") {
+                        ForEach(roster.otherFleets, id: \.fleet) { group in
+                            Menu(group.fleet) {
+                                ForEach(group.seats, id: \.title) { seat in
+                                    Button(seat.label) { layout.append(.member(seat.title), height: BoardLayout.large) }
+                                        .disabled(layout.contains(.member(seat.title)))
+                                }
+                            }
+                        }
                     }
                 }
                 Divider()
