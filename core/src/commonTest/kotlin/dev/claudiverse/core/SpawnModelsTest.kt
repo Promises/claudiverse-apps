@@ -18,14 +18,16 @@ class SpawnModelsTest {
         {"id":"claude-sonnet-5-5","label":"Sonnet 5.5","family":"sonnet","one_m":true,"accepts_1m_suffix":false,"since":null,"older":false},
         {"id":"claude-haiku-5-5","label":"Haiku 5.5","family":"haiku","one_m":true,"accepts_1m_suffix":false,"since":"2.1.293","older":false},
         {"id":"glm-5.3","label":"GLM-5.3 (Z.ai)","family":"glm","one_m":false,"accepts_1m_suffix":false,"since":null,"older":false},
-        {"id":"glm-5.3-flash","label":"GLM-5.3 Flash (Z.ai)","family":"glm","one_m":false,"accepts_1m_suffix":false,"since":null,"older":false}
+        {"id":"glm-5.3-flash","label":"GLM-5.3 Flash (Z.ai)","family":"glm","one_m":false,"accepts_1m_suffix":false,"since":null,"older":false},
+        {"id":"deepseek-v4.1-flash","label":"DeepSeek V4.1 Flash (OpenCode credits)","family":"deepseek","one_m":false,"accepts_1m_suffix":false,"since":null,"older":false}
     ],"aliases":[]}""").jsonObject)
 
     @Test
     fun glmIsOfferedAsItsOwnFamily() {
         val groups = catalog.spawnGroups("2.1.300")
-        assertEquals(listOf("opus", "sonnet", "haiku", "glm"), groups.map { it.id })
-        val glm = groups.last()
+        assertEquals(listOf("opus", "sonnet", "haiku", "glm", "deepseek"), groups.map { it.id })
+        assertEquals("DeepSeek (OpenCode)", groups.last().label)
+        val glm = groups[3]
         assertEquals("GLM (Z.ai)", glm.label)
         assertEquals(listOf("glm-5.3", "glm-5.3-flash"), glm.models.map { it.id })
         assertTrue(catalog.spawnModels("2.1.300").any { it.id == "glm-5.3" })
@@ -48,5 +50,6 @@ class SpawnModelsTest {
         assertEquals("claude-opus-5-5", spawnModelId(m("claude-opus-5-5"), oneM = true), "a bare-1M Claude 5 id never gets [1m]")
         assertEquals("glm-5.3", spawnModelId(m("glm-5.3"), oneM = false))
         assertNull(spawnModelId(null, oneM = true))
+        assertEquals("deepseek-v4.1-flash", spawnModelId(m("deepseek-v4.1-flash"), oneM = true), "DeepSeek takes no [1m]")
     }
 }

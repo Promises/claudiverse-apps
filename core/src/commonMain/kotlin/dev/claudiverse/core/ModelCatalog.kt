@@ -46,6 +46,9 @@ data class ModelCatalog(
         /** Z.ai's GLM models, served through the server's proxy. */
         const val GLM = "glm"
 
+        /** DeepSeek models, billed through OpenCode credits. */
+        const val DEEPSEEK = "deepseek"
+
         /** The group of a model without a family: the built-in list, all Claude. */
         const val CLAUDE = "claude"
 
@@ -53,6 +56,7 @@ data class ModelCatalog(
         fun groupLabel(family: String?): String = when (family) {
             null -> "Claude"
             GLM -> "GLM (Z.ai)"
+            DEEPSEEK -> "DeepSeek (OpenCode)"
             else -> family.replaceFirstChar { it.uppercase() }
         }
 
