@@ -4,7 +4,7 @@ import SwiftUI
 /**
  * A Claude Code seat's model in New seat, from the server's list (GET /api/models):
  * - the machine's own default first;
- * - one section per family, Z.ai's GLM and DeepSeek among them, each family's older models
+ * - one section per family, Z.ai's GLM, DeepSeek and Mistral among them, each family's older models
  *   folded into a submenu;
  * - a 1M switch where the model takes `[1m]` (those with it in their id
  *   already run 1M).
@@ -20,7 +20,7 @@ struct SpawnModelPicker: View {
     let set: (String?) -> Void
 
     /// The families the server starts in accept-edits when auto is asked: not Claude, so no auto mode.
-    static let acceptEditsFamilies = [ModelCatalog.companion.GLM, ModelCatalog.companion.DEEPSEEK]
+    static let acceptEditsFamilies = [ModelCatalog.companion.GLM, ModelCatalog.companion.DEEPSEEK, ModelCatalog.companion.MISTRAL]
 
     static func autoHint(family: String) -> String {
         "The server starts a \(ModelCatalog.companion.groupLabel(family: family)) seat in accept-edits mode when auto is asked."
