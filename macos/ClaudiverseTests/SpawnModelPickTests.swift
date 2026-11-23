@@ -8,6 +8,7 @@ final class SpawnModelPickTests: XCTestCase {
     private let opus46 = ModelChoice(label: "Opus 4.6", id: "claude-opus-4-6", oneM: true, since: nil, family: "opus")
     private let haiku55 = ModelChoice(label: "Haiku 5.5", id: "claude-haiku-5-5", oneM: false, since: "2.1.293", family: "haiku")
     private let glm = ModelChoice(label: "GLM-5.3 (Z.ai)", id: "glm-5.3", oneM: false, since: nil, family: "glm")
+    private let deepseek = ModelChoice(label: "DeepSeek V4.1 Flash (OpenCode credits)", id: "deepseek-v4.1-flash", oneM: false, since: nil, family: "deepseek")
 
     private var groups: [ModelGroup] {
         ModelCatalog(models: [opus55, haiku55, glm], olderModels: [opus46], aliases: [], fromServer: true).spawnGroups(version: "2.1.300")
@@ -53,7 +54,11 @@ final class SpawnModelPickTests: XCTestCase {
     }
 
     func testHints() {
-        XCTAssertEqual(SpawnModelPick.hint(machine: "lorem", offers: true, choice: glm, mode: "auto"), SpawnModelPicker.glmAutoHint)
+        XCTAssertEqual(SpawnModelPick.hint(machine: "lorem", offers: true, choice: glm, mode: "auto"),
+                       "The server starts a GLM (Z.ai) seat in accept-edits mode when auto is asked.")
+        XCTAssertEqual(SpawnModelPick.hint(machine: "lorem", offers: true, choice: deepseek, mode: "auto"),
+                       "The server starts a DeepSeek (OpenCode) seat in accept-edits mode when auto is asked.")
+        XCTAssertNil(SpawnModelPick.hint(machine: "lorem", offers: true, choice: deepseek, mode: "acceptEdits"))
         XCTAssertNil(SpawnModelPick.hint(machine: "lorem", offers: true, choice: glm, mode: "acceptEdits"))
         XCTAssertNil(SpawnModelPick.hint(machine: "lorem", offers: true, choice: opus55, mode: "auto"))
         XCTAssertNil(SpawnModelPick.hint(machine: "lorem", offers: true, choice: nil, mode: "auto"))
