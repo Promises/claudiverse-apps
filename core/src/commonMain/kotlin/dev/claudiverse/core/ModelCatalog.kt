@@ -49,6 +49,9 @@ data class ModelCatalog(
         /** DeepSeek models, billed through OpenCode credits. */
         const val DEEPSEEK = "deepseek"
 
+        /** Mistral's own models, on the operator's Mistral Vibe Pro plan. */
+        const val MISTRAL = "mistral"
+
         /** The group of a model without a family: the built-in list, all Claude. */
         const val CLAUDE = "claude"
 
@@ -57,6 +60,7 @@ data class ModelCatalog(
             null -> "Claude"
             GLM -> "GLM (Z.ai)"
             DEEPSEEK -> "DeepSeek (OpenCode)"
+            MISTRAL -> "Mistral (Vibe Pro)"
             else -> family.replaceFirstChar { it.uppercase() }
         }
 

@@ -32,6 +32,7 @@ data class ZaiKey(
     val providerName: String get() = when (provider) {
         null, ZAI -> ZAI_PLAN
         OPENCODE_GO -> "OpenCode Go"
+        MISTRAL -> "Mistral (Vibe Pro)"
         else -> provider
     }
 
@@ -51,6 +52,8 @@ data class ZaiKey(
         /** The Z.ai plan's name: where a key is added. */
         const val ZAI_PLAN = "Z.ai Coding Plan"
         const val OPENCODE_GO = "opencode-go"
+        /** Mistral's hosted GLM and DeepSeek on the Vibe Pro plan; its quota is one monthly allowance. */
+        const val MISTRAL = "mistral"
     }
 }
 

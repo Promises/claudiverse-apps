@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.TimeZone
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -45,8 +46,14 @@ class ZaiTest {
             {"id":1,"label":"coding plan","provider":"zai","status":"ok","windows":[]},
             {"id":3,"label":"opencode-go","provider":"opencode-go","status":"ok","windows":[]},
             {"id":4,"label":"older server","status":"ok","windows":[]},
-            {"id":5,"label":"new","provider":"someplan","status":"ok","windows":[]}]}""").zaiKeys()!!
-        assertEquals(listOf("Z.ai Coding Plan", "OpenCode Go", "Z.ai Coding Plan", "someplan"), keys.map { it.providerName })
+            {"id":5,"label":"new","provider":"someplan","status":"ok","windows":[]},
+            {"id":6,"label":"mistral-vibe","provider":"mistral","status":"ok","billing":null,"expires_at":null,
+             "windows":[{"window":"month","percent":42,"resets_at":"2026-12-01T00:00:00Z","used":null,"limit":null,"remaining":null}]}]}""").zaiKeys()!!
+        assertEquals(listOf("Z.ai Coding Plan", "OpenCode Go", "Z.ai Coding Plan", "someplan", "Mistral (Vibe Pro)"), keys.map { it.providerName })
+        // Its one window is a monthly allowance as a percent: no "? of ? credits".
+        val month = keys.last().windows.single()
+        assertEquals("Month", zaiWindowLabel(month))
+        assertFalse(zaiWindowLine(month).contains("?"), zaiWindowLine(month))
     }
 
     @Test

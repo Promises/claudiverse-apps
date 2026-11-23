@@ -27,6 +27,7 @@ class SpawnModelsTest {
         val groups = catalog.spawnGroups("2.1.300")
         assertEquals(listOf("opus", "sonnet", "haiku", "glm", "deepseek"), groups.map { it.id })
         assertEquals("DeepSeek (OpenCode)", groups.last().label)
+        assertEquals("Mistral (Vibe Pro)", ModelCatalog.groupLabel("mistral"))
         val glm = groups[3]
         assertEquals("GLM (Z.ai)", glm.label)
         assertEquals(listOf("glm-5.3", "glm-5.3-flash"), glm.models.map { it.id })
