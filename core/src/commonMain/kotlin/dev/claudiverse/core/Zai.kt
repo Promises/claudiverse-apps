@@ -25,14 +25,25 @@ data class ZaiKey(
     val windows: List<ZaiWindow>,
     /** Whose plan it is: "zai" (Z.ai Coding Plan) or "opencode-go"; null from a server that does not say (Z.ai). */
     val provider: String? = null,
+    /** The provider account as the operator names it ("someone@example.com"); credentials of one Mistral account share their allowances. */
+    val account: String? = null,
+    /** The server's order of use, lowest first; null when it does not say. */
+    val priority: Int? = null,
 ) {
     val ok: Boolean get() = status == "ok"
+
+    /** What kind of Mistral credential it is: "API key" or "Vibe session"; null for any other provider. */
+    val kind: String? get() = when (provider) {
+        MISTRAL -> "API key"
+        VIBE -> "Vibe session"
+        else -> null
+    }
 
     /** The plan's name, for a heading: "Z.ai Coding Plan", "OpenCode Go", or the server's name for one this app does not know. */
     val providerName: String get() = when (provider) {
         null, ZAI -> ZAI_PLAN
         OPENCODE_GO -> "OpenCode Go"
-        MISTRAL -> "Mistral (Vibe Pro)"
+        MISTRAL, VIBE -> "Mistral (Vibe Pro)"
         else -> provider
     }
 
@@ -46,6 +57,8 @@ data class ZaiKey(
             checkedAt = o.str("checked_at"),
             windows = o.array("windows").objects().map(ZaiWindow::from),
             provider = o.str("provider"),
+            account = o.str("account"),
+            priority = o.int("priority"),
         )
 
         const val ZAI = "zai"
@@ -54,7 +67,47 @@ data class ZaiKey(
         const val OPENCODE_GO = "opencode-go"
         /** Mistral's hosted GLM and DeepSeek on the Vibe Pro plan; its quota is one monthly allowance. */
         const val MISTRAL = "mistral"
+        /** A signed-in Mistral Vibe session: the same account's allowances as its API key. */
+        const val VIBE = "vibe"
     }
+}
+
+/** What the Pool shows for keys: one key as it always was, or one Mistral account's credentials together. */
+sealed interface ZaiEntry {
+    data class Single(val key: ZaiKey) : ZaiEntry
+
+    /**
+     * One Mistral account: its [windows] once (both credentials read the same
+     * allowances), then each credential in [keys], by priority.
+     */
+    data class Account(val account: String, val keys: List<ZaiKey>, val windows: List<ZaiWindow>) : ZaiEntry
+}
+
+/**
+ * The Pool's entries in the server's order: Mistral credentials (API key or
+ * Vibe session) that name the same account become one [ZaiEntry.Account],
+ * where its first credential was; every other key stays a [ZaiEntry.Single].
+ * The account's windows are those of the credential read last that has any.
+ */
+fun zaiEntries(keys: List<ZaiKey>): List<ZaiEntry> {
+    fun accountOf(k: ZaiKey) = k.account?.trim()?.takeIf { it.isNotEmpty() && (k.provider == ZaiKey.MISTRAL || k.provider == ZaiKey.VIBE) }
+    val groups = keys.filter { accountOf(it) != null }.groupBy { accountOf(it)!! }
+    val placed = mutableSetOf<String>()
+    return keys.mapNotNull { k ->
+        val account = accountOf(k) ?: return@mapNotNull ZaiEntry.Single(k)
+        if (!placed.add(account)) return@mapNotNull null
+        val members = groups.getValue(account)
+        val windows = members.filter { it.windows.isNotEmpty() }
+            .maxByOrNull { parseServerTime(it.checkedAt) ?: Long.MIN_VALUE }?.windows.orEmpty()
+        ZaiEntry.Account(account, members.sortedWith(compareBy<ZaiKey>({ it.priority ?: Int.MAX_VALUE }, { it.id })), windows)
+    }
+}
+
+/** A Mistral account's window: "API ($30)" (month) or "Vibe ($300)" (vibe); any other as [zaiWindowLabel]. */
+fun zaiAccountWindowLabel(w: ZaiWindow): String = when (w.window) {
+    "month" -> "API ($30)"
+    "vibe" -> "Vibe ($300)"
+    else -> zaiWindowLabel(w)
 }
 
 /** One quota window of a key: credits used of the limit, and when it resets (null on an unused window). */
