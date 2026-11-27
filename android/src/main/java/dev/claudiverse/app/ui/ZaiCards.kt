@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -24,7 +25,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import dev.claudiverse.core.ZaiEntry
 import dev.claudiverse.core.ZaiKey
+import dev.claudiverse.core.ZaiWindow
+import dev.claudiverse.core.zaiAccountWindowLabel
 import dev.claudiverse.core.relativeTime
 import dev.claudiverse.core.zaiWindowLabel
 import dev.claudiverse.core.zaiWindowLine
@@ -46,9 +50,79 @@ class ZaiActions(
  */
 @Composable
 fun ZaiCard(k: ZaiKey, actions: ZaiActions, onChanged: (String?) -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(k.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                k.level?.let { Pill("$it plan", MaterialTheme.colorScheme.primary) }
+                Pill(k.status, if (k.ok) StatusColors.good else StatusColors.bad)
+            }
+            k.lastError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = StatusColors.bad) }
+            if (k.windows.isEmpty()) Text("No quota read yet.", style = MaterialTheme.typography.bodySmall)
+            k.windows.forEach { w -> WindowBar(w, zaiWindowLabel(w)) }
+            KeyActions(k, actions, onChanged, "Checked ${relativeTime(k.checkedAt).ifEmpty { "never" }}")
+        }
+    }
+}
+
+/**
+ * One Mistral account: its credentials (an API key, a Vibe session) read the
+ * same allowances, so they are shown once, "API ($30)" and "Vibe ($300)",
+ * then each credential as a row with its kind, status and priority, and its
+ * own Check now and Remove.
+ */
+@Composable
+fun ZaiAccountCard(a: ZaiEntry.Account, actions: ZaiActions, onChanged: (String?) -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(a.account, style = MaterialTheme.typography.titleMedium)
+            if (a.windows.isEmpty()) Text("No quota read yet.", style = MaterialTheme.typography.bodySmall)
+            a.windows.forEach { w -> WindowBar(w, zaiAccountWindowLabel(w)) }
+            a.keys.forEach { k ->
+                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(k.label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                    k.kind?.let { Pill(it, MaterialTheme.colorScheme.primary) }
+                    Pill(k.status, if (k.ok) StatusColors.good else StatusColors.bad)
+                }
+                k.lastError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = StatusColors.bad) }
+                val checked = "Checked ${relativeTime(k.checkedAt).ifEmpty { "never" }}"
+                KeyActions(k, actions, onChanged, listOfNotNull(k.priority?.let { "Priority $it" }, checked).joinToString(" · "))
+            }
+        }
+    }
+}
+
+/** A quota window: its name and percent, a bar coloured by how much is used, and its line (credits, reset). */
+@Composable
+private fun WindowBar(w: ZaiWindow, label: String) {
+    Column {
+        Row {
+            Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
+            Text(w.percent?.let { "$it%" } ?: "—", style = MaterialTheme.typography.labelSmall)
+        }
+        w.percent?.let { pct ->
+            LinearProgressIndicator(
+                progress = { (pct / 100f).coerceIn(0f, 1f) },
+                color = when {
+                    w.spent -> StatusColors.bad
+                    pct >= 80 -> StatusColors.busy
+                    else -> StatusColors.good
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Text(zaiWindowLine(w), style = MaterialTheme.typography.bodySmall,
+            color = if (w.spent) StatusColors.bad else MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** A key's line: [info] (when it was checked, …), Check now, and Remove behind a confirm. */
+@Composable
+private fun KeyActions(k: ZaiKey, actions: ZaiActions, onChanged: (String?) -> Unit, info: String) {
     val scope = rememberCoroutineScope()
-    var busy by remember { mutableStateOf(false) }
-    var confirmRemove by remember { mutableStateOf(false) }
+    var busy by remember(k.id) { mutableStateOf(false) }
+    var confirmRemove by remember(k.id) { mutableStateOf(false) }
     fun act(what: String, block: suspend () -> Unit) {
         busy = true
         scope.launch {
@@ -65,7 +139,7 @@ fun ZaiCard(k: ZaiKey, actions: ZaiActions, onChanged: (String?) -> Unit) {
     }
     if (confirmRemove) AlertDialog(
         onDismissRequest = { confirmRemove = false },
-        title = { Text("Remove the Z.ai key \"${k.label}\"?") },
+        title = { Text("Remove the key \"${k.label}\"?") },
         text = { Text("Its seats keep running; only the quota display goes.") },
         confirmButton = {
             TextButton(onClick = { confirmRemove = false; actions.remove?.let { r -> act("Not removed") { r(k.id) } } }) {
@@ -74,43 +148,10 @@ fun ZaiCard(k: ZaiKey, actions: ZaiActions, onChanged: (String?) -> Unit) {
         },
         dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text("Cancel") } },
     )
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(k.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                k.level?.let { Pill("$it plan", MaterialTheme.colorScheme.primary) }
-                Pill(k.status, if (k.ok) StatusColors.good else StatusColors.bad)
-            }
-            k.lastError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = StatusColors.bad) }
-            if (k.windows.isEmpty()) Text("No quota read yet.", style = MaterialTheme.typography.bodySmall)
-            k.windows.forEach { w ->
-                Column {
-                    Row {
-                        Text(zaiWindowLabel(w), style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
-                        Text(w.percent?.let { "$it%" } ?: "—", style = MaterialTheme.typography.labelSmall)
-                    }
-                    w.percent?.let { pct ->
-                        LinearProgressIndicator(
-                            progress = { (pct / 100f).coerceIn(0f, 1f) },
-                            color = when {
-                                w.spent -> StatusColors.bad
-                                pct >= 80 -> StatusColors.busy
-                                else -> StatusColors.good
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    Text(zaiWindowLine(w), style = MaterialTheme.typography.bodySmall,
-                        color = if (w.spent) StatusColors.bad else MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Checked ${relativeTime(k.checkedAt).ifEmpty { "never" }}", style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.weight(1f))
-                actions.check?.let { c -> TextButton(onClick = { act("Not checked") { c(k.id) } }, enabled = !busy) { Text("Check now") } }
-                if (actions.remove != null) TextButton(onClick = { confirmRemove = true }, enabled = !busy) { Text("Remove…") }
-            }
-        }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(info, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+        actions.check?.let { c -> TextButton(onClick = { act("Not checked") { c(k.id) } }, enabled = !busy) { Text("Check now") } }
+        if (actions.remove != null) TextButton(onClick = { confirmRemove = true }, enabled = !busy) { Text("Remove…") }
     }
 }
 

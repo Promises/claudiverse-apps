@@ -11,6 +11,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import dev.claudiverse.core.ZaiKey
+import dev.claudiverse.core.ZaiEntry
+import dev.claudiverse.core.zaiEntries
 import dev.claudiverse.core.AccountSignIn
 import dev.claudiverse.core.ApiException
 import dev.claudiverse.core.Reauthorization
@@ -159,8 +161,17 @@ fun PoolScreen(
                                 if (adds) TextButton(onClick = { notice = null; addingZai = true }) { Text("Add key…") }
                             }
                         }
-                        items(keys, key = { "zai:${it.id}" }) { k ->
-                            ZaiCard(k, zaiActions) { p -> problem = p; vm.refresh() }
+                        // One Mistral account's API key and Vibe session are one card; every other key its own.
+                        items(zaiEntries(keys), key = { e ->
+                            when (e) {
+                                is ZaiEntry.Single -> "zai:${e.key.id}"
+                                is ZaiEntry.Account -> "zai-account:${e.account}"
+                            }
+                        }) { e ->
+                            when (e) {
+                                is ZaiEntry.Single -> ZaiCard(e.key, zaiActions) { p -> problem = p; vm.refresh() }
+                                is ZaiEntry.Account -> ZaiAccountCard(e, zaiActions) { p -> problem = p; vm.refresh() }
+                            }
                         }
                     }
                 }
